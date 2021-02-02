@@ -25,7 +25,6 @@ jobs:
         export DOCKER_VERSION=1.10.3
         export IMAGE_BUILD_NAME=${{ github.event.inputs.image_build_name }}
         export VERSION=${{ github.event.inputs.version }}
-        make
         make release
 
     - name: Log into registry
