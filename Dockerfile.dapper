@@ -1,8 +1,15 @@
 FROM ubuntu:bionic
 # FROM arm64=arm64v8/ubuntu:bionic
 
-RUN apt-get update && \
-    apt-get install -y curl git wget unzip
+ARG APT_ARCHIVE_SOURCE="archive.ubuntu.com"
+
+RUN sed -i "s|archive.ubuntu.com|${APT_ARCHIVE_SOURCE}|" /etc/apt/sources.list \
+ && apt-get update \
+ && apt-get install -y \
+      curl \
+      git \
+      wget \
+      unzip
 
 ENV DAPPER_ENV VERSION DEV_BUILD
 ENV DAPPER_DOCKER_SOCKET true
