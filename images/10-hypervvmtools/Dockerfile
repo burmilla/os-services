@@ -1,12 +1,13 @@
-FROM gcc:7.4.0 as build-essential
+FROM gcc:10.3.0 as build-essential
 # FROM arm64=skip arm=skip
+
 #RUN apt-get update && \
 #    apt-get install -y --no-install-recommends kmod && \
 #    apt-get clean && \
 #    rm -rf /var/lib/apt/* \
 
 WORKDIR /dist
-ENV KERNEL_VERSION 4.14.206-burmilla
+ENV KERNEL_VERSION 4.14.229-burmilla
 ENV KERNEL_SRC https://github.com/burmilla/os-kernel/releases/download/v${KERNEL_VERSION}/linux-${KERNEL_VERSION}-x86-src.tgz
 
 RUN wget -q $KERNEL_SRC && \
