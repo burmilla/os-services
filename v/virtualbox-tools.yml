@@ -1,5 +1,5 @@
 virtualbox-tools:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-vboxtools:v6.1.22-5.10.28-burmilla
+  image: ${REGISTRY_DOMAIN}/burmilla/os-vboxtools:v6.1.36-5.10.129-burmilla
   command: /usr/local/bin/run
   privileged: true
   restart: always
