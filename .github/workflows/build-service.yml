@@ -5,7 +5,7 @@ on:
     inputs:
       image_build_name:
         description: 'IMAGE_BUILD_NAME'
-        default: '20-vboxtools'
+        default: '10-vboxtools'
         required: true
       version:
         description: 'VERSION'
