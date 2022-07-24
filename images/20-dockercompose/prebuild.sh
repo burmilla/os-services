@@ -7,7 +7,7 @@ VERSION=$1
 ARCH=$2
 if [ "$ARCH" == "amd64" ]; then
     DOCKERARCH="x86_64"
-    COMPOSE_URL="https://github.com/docker/compose/releases/download/${VERSION}/docker-compose-Linux-${DOCKERARCH}"
+    COMPOSE_URL="https://github.com/docker/compose/releases/download/v${VERSION}/docker-compose-linux-${DOCKERARCH}"
 fi
 
 mkdir -p compose
