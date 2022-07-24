@@ -5,6 +5,13 @@ Docker Images for RancherOS
 
 Run `make`
 
+Environment variables:
+
+- The BUILD_IMAGE_NAME environment variable can be set to the directory name in `images/` to build a specific image.
+- The VERSION environment variable can be set to build a specific version of an image.
+
+e.g to build `docker-compose` v2.7.0, run `VERSION=2.7.0 BUILD_IMAGE_NAME=20-dockercompose make`
+
 ## Details
 
 ### Multi-arch Dockerfiles
