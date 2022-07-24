@@ -5,7 +5,7 @@ ENV KERNEL_VERSION 5.10.129-burmilla
 ENV KERNEL_HEADERS https://github.com/burmilla/os-kernel/releases/download/v${KERNEL_VERSION}/linux-${KERNEL_VERSION}-x86.tar.gz
 ENV KERNEL_BASE https://github.com/burmilla/os-kernel/releases/download/v${KERNEL_VERSION}/linux-${KERNEL_VERSION}-x86.tar.gz
 ENV VBOX_VERSION 6.1.36
-ENV VBOX_SHA256 bffc316a7b8d5ed56d830e9f6aef02b4e5ffc28674032142e96ffbedd905f8c9
+ENV VBOX_SHA256 c987cdc8c08c579f56d921c85269aeeac3faf636babd01d9461ce579c9362cdd
 
 RUN set -x \
  && apt-get update \
