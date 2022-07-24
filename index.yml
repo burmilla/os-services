@@ -29,3 +29,4 @@ engines:
 - docker-20.10.13
 - docker-20.10.14
 - docker-20.10.17
+- docker-22.06.0beta0
