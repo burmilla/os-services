@@ -17,9 +17,6 @@ services:
 - virtualbox-tools
 - docker-compose
 engines:
-- docker-19.03.13
-- docker-19.03.14
-- docker-19.03.15
 - docker-20.10.0
 - docker-20.10.1
 - docker-20.10.2
@@ -31,3 +28,4 @@ engines:
 - docker-20.10.12
 - docker-20.10.13
 - docker-20.10.17
+- docker-20.10.18
