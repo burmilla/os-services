@@ -3,11 +3,12 @@ set -ex
 
 VERSION=$1
 ARCH=$2
-if [ "$ARCH" == "amd64" ]; then
-    DOCKERARCH="x86_64"
-    URL="https://download.docker.com/linux/static/test/${DOCKERARCH}/docker-22.06.0-beta.0.tgz"
+if [ "$ARCH" == "arm64" ]; then
+    DOCKERARCH="aarch64"
+    URL="https://download.docker.com/linux/static/test/${DOCKERARCH}/docker-23.0.0-rc.1.tgz"
     #ROOTLESS_URL="https://download.docker.com/linux/static/stable/${DOCKERARCH}/docker-rootless-extras-${VERSION}.tgz"
-    COMPLETION_URL="https://raw.githubusercontent.com/docker/cli/v22.06.0-beta.0/contrib/completion/bash/docker"
+    COMPLETION_URL="https://raw.githubusercontent.com/docker/cli/v23.0.0-rc.1/contrib/completion/bash/docker"
+    SUFFIX="_${ARCH}"
 fi
 
 DEST="./images/10-docker-${VERSION}${SUFFIX}"
