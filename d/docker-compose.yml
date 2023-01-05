@@ -1,5 +1,5 @@
 docker-compose:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-dockercompose:2.8.0
+  image: ${REGISTRY_DOMAIN}/burmilla/os-dockercompose:2.15.0
   labels:
     io.rancher.os.scope: system
     io.rancher.os.after: console
