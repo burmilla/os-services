@@ -7,7 +7,7 @@ FROM gcc:10.3.0 as build-essential
 #    rm -rf /var/lib/apt/* \
 
 WORKDIR /dist
-ENV KERNEL_VERSION 5.10.129-burmilla
+ENV KERNEL_VERSION 5.10.162-burmilla
 ENV KERNEL_SRC https://github.com/burmilla/os-kernel/releases/download/v${KERNEL_VERSION}/linux-${KERNEL_VERSION}-x86-src.tgz
 
 RUN wget -q $KERNEL_SRC && \
