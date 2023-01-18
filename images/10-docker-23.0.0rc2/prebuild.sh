@@ -5,9 +5,9 @@ VERSION=$1
 ARCH=$2
 if [ "$ARCH" == "amd64" ]; then
     DOCKERARCH="x86_64"
-    URL="https://download.docker.com/linux/static/test/${DOCKERARCH}/docker-23.0.0-rc.1.tgz"
+    URL="https://download.docker.com/linux/static/test/${DOCKERARCH}/docker-23.0.0-rc.2.tgz"
     #ROOTLESS_URL="https://download.docker.com/linux/static/stable/${DOCKERARCH}/docker-rootless-extras-${VERSION}.tgz"
-    COMPLETION_URL="https://raw.githubusercontent.com/docker/cli/v23.0.0-rc.1/contrib/completion/bash/docker"
+    COMPLETION_URL="https://raw.githubusercontent.com/docker/cli/v23.0.0-rc.2/contrib/completion/bash/docker"
 fi
 
 DEST="./images/10-docker-${VERSION}${SUFFIX}"
