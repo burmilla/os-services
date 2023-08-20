@@ -1,5 +1,5 @@
 qemu-guest-agent:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-qemuguestagent:v3.1.0-1
+  image: ${REGISTRY_DOMAIN}/burmilla/os-qemuguestagent:v7.2-1
   command: /usr/local/bin/run
   privileged: true
   restart: always
