@@ -1,5 +1,5 @@
 open-vm-tools:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-openvmtools:12.1.5-1
+  image: ${REGISTRY_DOMAIN}/burmilla/os-openvmtools:12.2.5-1
   command: /usr/bin/vmtoolsd
   privileged: true
   labels:
