@@ -1,10 +1,10 @@
 docker-compose:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-dockercompose:2.20.2
+  image: ${REGISTRY_DOMAIN}/burmilla/os-dockercompose:latest
   labels:
     io.rancher.os.scope: system
     io.rancher.os.after: console
     io.docker.compose.rebuild: always
-  net: none
+  net: host
   privileged: true
   volumes_from:
   - all-volumes
