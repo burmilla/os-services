@@ -25,7 +25,7 @@ FROM debian:bullseye-slim
 # FROM arm64=skip arm=skip
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends sudo && \
+    apt-get install -y --no-install-recommends iproute2 sudo && \
     apt-get clean && \
     rm -rf /var/lib/apt/* && \
     mkdir -p /usr/libexec/hypervkvpd/
