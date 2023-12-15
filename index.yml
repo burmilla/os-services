@@ -18,3 +18,4 @@ services:
 - docker-compose
 engines:
 - docker-24.0.5
+- docker-24.0.7
