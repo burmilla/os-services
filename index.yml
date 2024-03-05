@@ -16,5 +16,5 @@ services:
 - waagent
 - docker-compose
 engines:
-- docker-24.0.5
-- docker-24.0.7
+- docker-24.0.9
+- docker-25.0.3

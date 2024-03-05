@@ -1,5 +1,5 @@
 docker:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-docker:24.0.7${SUFFIX}
+  image: ${REGISTRY_DOMAIN}/burmilla/os-docker:25.0.3${SUFFIX}
   command: ros user-docker
   environment:
   - HTTP_PROXY
