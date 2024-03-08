@@ -1,0 +1,9 @@
+azure-identity:
+  image: ${REGISTRY_DOMAIN}/burmilla/os-azureidentity:v1
+  environment:
+  - AZIDENTITY_*
+  labels:
+    io.rancher.os.scope: system
+    io.rancher.os.before: docker
+  net: host
+  restart: always
