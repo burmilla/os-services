@@ -16,6 +16,7 @@ services:
 - waagent
 - docker-compose
 - azure-identity
+- hbm
 engines:
 - docker-24.0.9
 - docker-25.0.3
