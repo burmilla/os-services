@@ -1,5 +1,5 @@
 gobgp:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-gobgp:v3.25.0-burmilla-13
+  image: ${REGISTRY_DOMAIN}/burmilla/os-gobgp:v3.25.0-burmilla-14
   environment:
   - GOBGP_*
   labels:

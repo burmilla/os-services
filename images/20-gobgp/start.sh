@@ -68,4 +68,4 @@ for key in "${!neighbor_subsettings[@]}"; do
   echo "    $key_name = ${neighbor_subsettings[$key]}" >> "$config_file"
 done
 
-gobgpd -f $config_file
+gobgpd --log-level=debug -f $config_file
