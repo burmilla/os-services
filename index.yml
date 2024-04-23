@@ -22,3 +22,4 @@ engines:
 - docker-24.0.9
 - docker-25.0.3
 - docker-26.0.1
+- docker-26.0.2
