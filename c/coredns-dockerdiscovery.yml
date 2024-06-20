@@ -1,0 +1,11 @@
+coredns-dockerdiscovery:
+  image: ${REGISTRY_DOMAIN}/burmilla/os-corednsdockerdiscovery:v1.10.1-burmilla-3
+  labels:
+    io.rancher.os.scope: system
+    io.rancher.os.before: docker
+  net: host
+  restart: always
+  volumes:
+    - /usr/bin/ros:/usr/sbin/wait-for-docker:ro
+    - /etc/resolv.conf:/etc/resolv.conf:ro
+    - /var/run/:/var/run/

@@ -16,6 +16,7 @@ services:
 - waagent
 - docker-compose
 - azure-identity
+- coredns-dockerdiscovery
 engines:
 - docker-20.10.23
 - docker-23.0.6
