@@ -1,0 +1,27 @@
+name: publish-docker
+
+on:
+  workflow_dispatch:
+  schedule:
+  - cron: '38 01 * * 1,3'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Publish Docker
+      shell: pwsh
+      run: . ./.github/publish-docker.ps1
+
+    - name: Create Pull Request
+      if: env.CREATE_PR == 'true'
+      uses: peter-evans/create-pull-request@v7
+      with:
+        base: v2.0.x
+        title: ${{ env.PR_TITLE }}
+        body: ${{ env.PR_TITLE }}
+        add-paths: .
