@@ -57,6 +57,8 @@ function build() {
             ${build_dir}/prebuild.sh "${version}" "${LOCALARCH}"
         fi
 
+        export DOCKER_VERSION="${version}"
+        export DAPPER_ENV=DOCKER_VERSION
         if dapper -d --build -f ${build_dir}/Dockerfile -- -t ${OS_REPO}/${name} ${build_dir}; then
             docker tag ${OS_REPO}/${name} ${tag}
             if [ "${name}" == "os-docker" ]; then

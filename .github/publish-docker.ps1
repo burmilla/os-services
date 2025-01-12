@@ -11,12 +11,6 @@ $versionsShorted = $nonPreviewReleases.name | Sort-Object -Descending
 $latestMajor = ""
 $latestToPublish = ""
 forEach($v in $versionsShorted) {
-  if ($latestMajor -eq "") {
-    $latestMajor = ($v -split "\.")[0] -replace "^v",""
-  }
-  if ($v -like "v$($latestMajor).*") {
-    continue
-  }
   $latestToPublish = $v -replace "^v",""
   break
 }
