@@ -25,6 +25,17 @@ if ($latestToPublish -in $dockerVersionsToSkip) {
   echo "CREATE_PR=false" >> $env:GITHUB_ENV
   return
 }
+
+$PRs = Invoke-RestMethod -UseBasicParsing https://api.github.com/repos/burmilla/os-services/pulls?state=all
+$prTitle = "Add Docker $latestToPublish"
+$PRs | ForEach-Object {
+  if ($_.title -eq $prTitle) {
+  Write-Host "Version $latestToPublish pull request already exist"
+    echo "CREATE_PR=false" >> $env:GITHUB_ENV
+    return
+  }
+}
+
 Write-Host "Version $latestToPublish is latest, trying to publish"    
 try {
   $tarUrl = "https://download.docker.com/linux/static/stable/x86_64/docker-" + $latestToPublish + ".tgz"
@@ -73,5 +84,5 @@ $dockerYML | Out-File "./d/docker-$latestToPublish.yml" -Append
 ln -s docker "./images/10-docker-$latestToPublish"
 
 echo "CREATE_PR=true" >> $env:GITHUB_ENV
-echo "PR_TITLE=Add Docker $latestToPublish" >> $env:GITHUB_ENV
+echo "PR_TITLE=$prTitle" >> $env:GITHUB_ENV
 echo "DOCKER_VERSION=$latestToPublish" >> $env:GITHUB_ENV
