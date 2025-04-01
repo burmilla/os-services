@@ -5,11 +5,11 @@ on:
     inputs:
       image_build_name:
         description: 'IMAGE_BUILD_NAME'
-        default: '10-vboxtools'
+        default: '30-k3s'
         required: true
       version:
         description: 'VERSION'
-        default: '0.0.1'
+        default: '1.32.3'
         required: true
 
 jobs:
