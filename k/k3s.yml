@@ -1,6 +1,6 @@
 docker:
-  image: ${REGISTRY_DOMAIN}/rancher/k3s:v1.20.2-k3s1${SUFFIX}
-  command: ros k3s
+  image: ${REGISTRY_DOMAIN}/rancher/k3s:${K3S_VERSION}${SUFFIX}
+  command: ${K3S_COMMAND}
   environment:
   - HTTP_PROXY
   - HTTPS_PROXY
