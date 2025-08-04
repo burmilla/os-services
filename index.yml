@@ -16,6 +16,7 @@ services:
 - waagent
 - azure-identity
 engines:
+- docker-26.1.5
 - docker-27.4.1
 - docker-27.5.0
 - docker-27.5.1
