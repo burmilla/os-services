@@ -24,3 +24,4 @@ engines:
 - docker-28.0.2
 - docker-28.0.4
 - docker-28.3.3
+- docker-28.5.0
