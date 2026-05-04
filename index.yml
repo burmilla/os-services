@@ -32,3 +32,4 @@ engines:
 - docker-29.1.2
 - docker-29.1.4
 - docker-29.1.5
+- docker-29.4.2
