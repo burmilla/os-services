@@ -1,5 +1,5 @@
 hyperv-vm-tools:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-hypervvmtools:v5.10.188-burmilla-2
+  image: ${REGISTRY_DOMAIN}/burmilla/os-hypervvmtools:6.12.95-burmilla-1
   command: ["hv_kvp_daemon", "-n"]
   privileged: true
   labels:
