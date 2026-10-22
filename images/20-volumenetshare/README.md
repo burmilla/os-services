@@ -18,7 +18,6 @@ Additional options may be specified through environment:
 Add following settings to your cloud-config:
 ```
 services_include:
-  amazon-metadata: true
   volume-efs: true
 ```
 

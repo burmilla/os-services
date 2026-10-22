@@ -10,11 +10,9 @@ services:
 - open-vm-tools
 - hyperv-vm-tools
 - qemu-guest-agent
-- amazon-metadata
 - volume-cifs
 - volume-efs
 - volume-nfs
-- modem-manager
 - waagent
 - azure-identity
 engines:
