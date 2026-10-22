@@ -23,12 +23,18 @@ Debian 13 container, so the console shows the endpoint as Debian 13.
   (`S1_AGENT_MANAGEMENT_TOKEN`, `S1_AGENT_DEVICE_TYPE=server`, proxies).
 * `/opt/sentinelone` is stored on the host in `/var/lib/sentinelone`, so the
   agent keeps its identity, configuration and updates pushed from the console
-  over service restarts and BurmillaOS upgrades. When it already exists the
-  package is not installed again.
+  over service restarts and BurmillaOS upgrades.
+* The installed package is kept in `/var/lib/rancher/sentinelone-cache`. When
+  the container is recreated (service image update, BurmillaOS upgrade), the
+  same package is installed again to restore what it puts outside
+  `/opt/sentinelone` (users, units, dpkg status). If the agent was updated
+  from the console in the meantime, the older package is not installed over
+  it and the agent is started from `/opt/sentinelone` as it is.
 * The agent uses eBPF, no kernel modules. The container is privileged and
   shares the host PID, network, IPC and UTS namespaces, so the agent sees all
   processes and connections of the host, System Docker and User Docker.
-  `/var/lib/docker` and `/var/run/docker.sock` of User Docker, `/home` and
+  `/var/lib/docker` and `/var/run/docker.sock` (via `system-volumes`) of User
+  Docker, `/home` and
   `/opt` are mounted for file and container visibility.
 * The service restarts when the agent processes are gone for 90 seconds.
 
@@ -41,7 +47,7 @@ Debian 13 container, so the console shows the endpoint as Debian 13.
    * copy it to `/var/lib/rancher/conf/sentinelone/` (the newest `.deb` there
      is used),
    * set `SENTINELONE_PACKAGE_URL` to an internal URL that serves it,
-     optionally with `SENTINELONE_PACKAGE_SHA256`, or
+     together with its `SENTINELONE_PACKAGE_SHA256`, or
    * set `SENTINELONE_PACKAGE` to the path of the file.
 3. Set the token in `SENTINELONE_SITE_TOKEN`, or write it to
    `/var/lib/rancher/conf/sentinelone-token`.
@@ -54,6 +60,7 @@ rancher:
   environment:
     SENTINELONE_SITE_TOKEN: eyJ1cmwiOi...
     SENTINELONE_PACKAGE_URL: https://repo.example.com/s1/SentinelAgent_linux_x86_64_v26_2_1.deb
+    SENTINELONE_PACKAGE_SHA256: 3f2a...
   services_include:
     sentinelone: true
 ```
@@ -83,7 +90,7 @@ sudo system-docker exec sentinelone /opt/sentinelone/bin/sentinelctl management 
 | `SENTINELONE_SITE_TOKEN_FILE` | `/var/lib/rancher/conf/sentinelone-token` | File with the token |
 | `SENTINELONE_PACKAGE` | newest `/var/lib/rancher/conf/sentinelone/*.deb` | Package file |
 | `SENTINELONE_PACKAGE_URL` | | URL of the package, downloaded to `/var/lib/rancher/sentinelone-cache` |
-| `SENTINELONE_PACKAGE_SHA256` | | Expected SHA-256 of the package |
+| `SENTINELONE_PACKAGE_SHA256` | | Expected SHA-256 of the package, required with `SENTINELONE_PACKAGE_URL` |
 | `SENTINELONE_DEVICE_TYPE` | `server` | `server` or `desktop` |
 | `SENTINELONE_MANAGEMENT_PROXY` | | Proxy for the management connection |
 | `SENTINELONE_DV_PROXY` | | Proxy for Deep Visibility |

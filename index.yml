@@ -3,7 +3,6 @@ services:
 - container-cron
 - fleet-client
 - otel-collector
-- sentinelone
 - zfs
 - kernel-extras
 - kernel-headers
@@ -18,6 +17,7 @@ services:
 - modem-manager
 - waagent
 - azure-identity
+- sentinelone
 engines:
 - docker-25.0.14
 - docker-25.0.17

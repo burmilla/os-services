@@ -22,6 +22,11 @@ find_package() {
         return
     fi
     if [ -n "${SENTINELONE_PACKAGE_URL}" ]; then
+        # The install carries the site token, so a downloaded package must be verified
+        if [ -z "${SENTINELONE_PACKAGE_SHA256}" ]; then
+            echo "SENTINELONE_PACKAGE_SHA256 is required with SENTINELONE_PACKAGE_URL" >&2
+            exit 1
+        fi
         mkdir -p ${CACHE_DIR}
         echo "Downloading ${SENTINELONE_PACKAGE_URL}" >&2
         curl -fsSL --retry 3 -o ${CACHE_DIR}/SentinelAgent.deb.new "${SENTINELONE_PACKAGE_URL}"
@@ -33,7 +38,7 @@ find_package() {
 }
 
 install_agent() {
-    DEB=$(find_package)
+    DEB=${1:-$(find_package)}
     if [ -z "${DEB}" ] || [ ! -f "${DEB}" ]; then
         echo "SentinelOne package missing: copy the Linux agent .deb to ${PACKAGE_DIR}/ or set SENTINELONE_PACKAGE_URL" >&2
         exit 1
@@ -80,6 +85,32 @@ install_agent() {
         exit 1
     fi
     rm -f "${CONFIG}"
+
+    # Keep the installed package, so a recreated container can restore what
+    # the package installs outside /opt/sentinelone (users, units, dpkg status)
+    mkdir -p ${CACHE_DIR} ${STATE_DIR}
+    if [ "${DEB}" != "${CACHE_DIR}/SentinelAgent.deb" ]; then
+        cp "${DEB}" ${CACHE_DIR}/SentinelAgent.deb
+    fi
+    dpkg-deb -f "${DEB}" Package > ${STATE_DIR}/package
+    dpkg-deb -f "${DEB}" Version > ${STATE_DIR}/version
+}
+
+# A recreated container (service update, BurmillaOS upgrade) has
+# /opt/sentinelone but not the rest of the package. Install the same package
+# again; a different version would replace an agent updated from the console.
+restore_agent() {
+    PACKAGE=$(cat ${STATE_DIR}/package 2>/dev/null || true)
+    if [ -z "${PACKAGE}" ] || dpkg -s "${PACKAGE}" >/dev/null 2>&1; then
+        return
+    fi
+    DEB=${CACHE_DIR}/SentinelAgent.deb
+    if [ -f "${DEB}" ] && [ "$(dpkg-deb -f "${DEB}" Version)" = "$(cat ${STATE_DIR}/version)" ]; then
+        echo "Restoring the SentinelOne package in the new container"
+        install_agent "${DEB}"
+    else
+        echo "Cannot restore the SentinelOne package $(cat ${STATE_DIR}/version) in the new container, starting the agent from /opt/sentinelone" >&2
+    fi
 }
 
 agent_running() {
@@ -105,6 +136,8 @@ stop_agent() {
 
 if ! installed; then
     install_agent
+else
+    restore_agent
 fi
 
 # Keep the unit of the installed package for the next container
@@ -133,6 +166,12 @@ while true; do
     wait $! || true
     if agent_running; then
         FAILED=0
+        # Follow updates installed from the console, so restore_agent does not
+        # install an older package over them
+        if [ -f ${STATE_DIR}/package ]; then
+            dpkg-query -W -f '${Version}\n' "$(cat ${STATE_DIR}/package)" > ${STATE_DIR}/version.new 2>/dev/null \
+                && mv ${STATE_DIR}/version.new ${STATE_DIR}/version || rm -f ${STATE_DIR}/version.new
+        fi
     else
         FAILED=$((FAILED + 1))
         echo "SentinelOne agent is not running (${FAILED}/3)" >&2
