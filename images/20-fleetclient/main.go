@@ -51,6 +51,20 @@ type SwarmStatus struct {
 	NodesReady        int    `json:"nodes_ready"`
 	Managers          int    `json:"managers"`
 	ManagersReachable int    `json:"managers_reachable"`
+	// Service counters are only filled in by managers. Jobs are skipped.
+	Services         int            `json:"services"`
+	ServicesReady    int            `json:"services_ready"`
+	ServicesNotReady []ServiceState `json:"services_not_ready"`
+}
+
+// ServiceState describes a Swarm service which does not run all of its
+// tasks, or is in the middle of an update, with its current spec.
+type ServiceState struct {
+	Name         string `json:"name"`
+	Mode         string `json:"mode"`
+	DesiredTasks int    `json:"desired_tasks"`
+	RunningTasks int    `json:"running_tasks"`
+	UpdateState  string `json:"update_state"`
 }
 
 type Report struct {
@@ -363,7 +377,70 @@ func (c *client) swarmStatus() (*SwarmStatus, error) {
 			}
 		}
 	}
+	if err := c.serviceStatus(st); err != nil {
+		return nil, err
+	}
 	return st, nil
+}
+
+// serviceStatus counts the services which run all their desired tasks
+// with their current spec. Swarm reports a task with a health check as
+// running only once it is healthy, so running means healthy here.
+func (c *client) serviceStatus(st *SwarmStatus) error {
+	var services []struct {
+		Spec struct {
+			Name string
+			Mode struct {
+				Replicated    *struct{}
+				Global        *struct{}
+				ReplicatedJob *struct{}
+				GlobalJob     *struct{}
+			}
+		}
+		ServiceStatus *struct {
+			RunningTasks int
+			DesiredTasks int
+		}
+		UpdateStatus *struct{ State string }
+	}
+	if err := c.dockerGet("/services?status=true", &services); err != nil {
+		return err
+	}
+	st.ServicesNotReady = []ServiceState{}
+	for _, svc := range services {
+		mode := "replicated"
+		switch {
+		case svc.Spec.Mode.ReplicatedJob != nil, svc.Spec.Mode.GlobalJob != nil:
+			continue
+		case svc.Spec.Mode.Global != nil:
+			mode = "global"
+		}
+		s := ServiceState{Name: svc.Spec.Name, Mode: mode}
+		if svc.ServiceStatus != nil {
+			s.DesiredTasks, s.RunningTasks = svc.ServiceStatus.DesiredTasks, svc.ServiceStatus.RunningTasks
+		}
+		if svc.UpdateStatus != nil {
+			s.UpdateState = svc.UpdateStatus.State
+		}
+		st.Services++
+		if s.RunningTasks >= s.DesiredTasks && !updateInProgress(s.UpdateState) {
+			st.ServicesReady++
+		} else {
+			st.ServicesNotReady = append(st.ServicesNotReady, s)
+		}
+	}
+	return nil
+}
+
+// updateInProgress reports whether a service update has not reached its
+// target configuration yet. A completed rollback is a finished state: the
+// service runs its previous spec again.
+func updateInProgress(state string) bool {
+	switch state {
+	case "updating", "paused", "rollback_started", "rollback_paused":
+		return true
+	}
+	return false
 }
 
 func (c *client) post(path string, body any) (*http.Response, error) {

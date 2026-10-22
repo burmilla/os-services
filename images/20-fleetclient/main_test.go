@@ -24,6 +24,16 @@ func TestSwarmStatus(t *testing.T) {
 				{"Status":{"State":"ready"},"ManagerStatus":{"Reachability":"reachable"}},
 				{"Status":{"State":"down"},"ManagerStatus":{"Reachability":"unreachable"}},
 				{"Status":{"State":"ready"}}]`))
+		case "/services":
+			if r.URL.Query().Get("status") != "true" {
+				t.Errorf("service status not requested")
+			}
+			w.Write([]byte(`[
+				{"Spec":{"Name":"web","Mode":{"Replicated":{"Replicas":3}}},"ServiceStatus":{"RunningTasks":3,"DesiredTasks":3}},
+				{"Spec":{"Name":"api","Mode":{"Replicated":{"Replicas":2}}},"ServiceStatus":{"RunningTasks":2,"DesiredTasks":2},"UpdateStatus":{"State":"paused"}},
+				{"Spec":{"Name":"agent","Mode":{"Global":{}}},"ServiceStatus":{"RunningTasks":2,"DesiredTasks":3}},
+				{"Spec":{"Name":"old","Mode":{"Replicated":{}}},"ServiceStatus":{"RunningTasks":1,"DesiredTasks":1},"UpdateStatus":{"State":"rollback_completed"}},
+				{"Spec":{"Name":"migrate","Mode":{"ReplicatedJob":{}}},"ServiceStatus":{"RunningTasks":0,"DesiredTasks":1}}]`))
 		}
 	})}}
 	srv.Start()
@@ -34,9 +44,18 @@ func TestSwarmStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := SwarmStatus{NodeID: "n1", ClusterID: "c1", LocalNodeState: "active", Manager: true, Nodes: 3, NodesReady: 2, Managers: 2, ManagersReachable: 1}
-	if *st != want {
+	if st.NodeID != "n1" || st.ClusterID != "c1" || st.LocalNodeState != "active" || !st.Manager ||
+		st.Nodes != 3 || st.NodesReady != 2 || st.Managers != 2 || st.ManagersReachable != 1 {
 		t.Fatalf("got %+v", *st)
+	}
+	if st.Services != 4 || st.ServicesReady != 2 || len(st.ServicesNotReady) != 2 {
+		t.Fatalf("unexpected services: %+v", *st)
+	}
+	if got := st.ServicesNotReady[0]; got != (ServiceState{Name: "api", Mode: "replicated", DesiredTasks: 2, RunningTasks: 2, UpdateState: "paused"}) {
+		t.Fatalf("api: %+v", got)
+	}
+	if got := st.ServicesNotReady[1]; got != (ServiceState{Name: "agent", Mode: "global", DesiredTasks: 3, RunningTasks: 2}) {
+		t.Fatalf("agent: %+v", got)
 	}
 }
 
