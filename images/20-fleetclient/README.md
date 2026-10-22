@@ -10,7 +10,11 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
    kernel, boot time and the Docker Swarm status of the node (from the User
    Docker API). Managers also send node and manager counts and the state of
    every service: desired vs. running tasks and whether an update is in
-   progress.
+   progress. Every server also reports its local User Docker containers
+   which Docker restarts on its own (restart policy `always`,
+   `unless-stopped` or `on-failure`, Swarm tasks excluded): ready means
+   running and, with a health check, healthy. Label a container
+   `io.burmilla.fleet.ignore=true` to leave it out.
 2. Gets back the target versions, upgrade policy, maintenance window and
    whether a scheduled restart is due.
 3. Depending on `upgrade_policy`:
@@ -18,8 +22,9 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
    * `download` – pre-pulls the target BurmillaOS image.
    * `auto` – inside the maintenance window, asks Fleet Manager for a
      **maintenance lock**. The lock is only granted when the whole Swarm is
-     healthy (all nodes ready and all services running their desired tasks
-     with their target configuration) and the Swarm + Environment has a free
+     healthy (all nodes ready, all services running their desired tasks
+     with their target configuration and all local containers with a
+     restart policy ready) and the Swarm + Environment has a free
      slot. With the lock it runs
      `ros engine switch` (User Docker), then `ros os upgrade` (reboots) or a
      plain reboot for a scheduled restart. The lock is released by Fleet Manager

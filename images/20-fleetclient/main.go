@@ -73,18 +73,19 @@ type ServiceState struct {
 }
 
 type Report struct {
-	Hostname      string       `json:"hostname"`
-	Swarm         string       `json:"swarm"`
-	Environment   string       `json:"environment"`
-	OSVersion     string       `json:"os_version"`
-	DockerVersion string       `json:"docker_version"`
-	KernelVersion string       `json:"kernel_version"`
-	ClientVersion string       `json:"client_version"`
-	BootTime      time.Time    `json:"boot_time"`
-	State         string       `json:"state"`
-	Message       string       `json:"message"`
-	SwarmStatus   *SwarmStatus `json:"swarm_status,omitempty"`
-	SSH           *SSH         `json:"ssh,omitempty"`
+	Hostname      string           `json:"hostname"`
+	Swarm         string           `json:"swarm"`
+	Environment   string           `json:"environment"`
+	OSVersion     string           `json:"os_version"`
+	DockerVersion string           `json:"docker_version"`
+	KernelVersion string           `json:"kernel_version"`
+	ClientVersion string           `json:"client_version"`
+	BootTime      time.Time        `json:"boot_time"`
+	State         string           `json:"state"`
+	Message       string           `json:"message"`
+	SwarmStatus   *SwarmStatus     `json:"swarm_status,omitempty"`
+	Containers    *ContainerStatus `json:"containers,omitempty"`
+	SSH           *SSH             `json:"ssh,omitempty"`
 }
 
 type client struct {
@@ -328,6 +329,12 @@ func (c *client) collect() *Report {
 		log.Printf("cannot read Swarm status: %v", err)
 	} else {
 		rep.SwarmStatus = st
+	}
+	cs, err := c.containerStatus()
+	if err != nil {
+		log.Printf("cannot read container status: %v", err)
+	} else {
+		rep.Containers = cs
 	}
 	return rep
 }
