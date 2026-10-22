@@ -10,7 +10,7 @@ FROM gcc:14.2.0-bookworm as build-essential
 #    rm -rf /var/lib/apt/* \
 
 WORKDIR /dist
-ENV KERNEL_VERSION 6.12.95-burmilla
+ENV KERNEL_VERSION 6.12.114-burmilla
 ENV KERNEL_SRC https://github.com/burmilla/os-kernel/releases/download/v${KERNEL_VERSION}/linux-${KERNEL_VERSION}-x86-src.tgz
 
 RUN wget -q $KERNEL_SRC && \
