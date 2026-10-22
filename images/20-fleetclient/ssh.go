@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"syscall"
+	"time"
 )
 
 // SSH is the SSH part of the desired state and of the report. A nil field
@@ -14,6 +15,11 @@ import (
 type SSH struct {
 	AuthorizedKeys         []string `json:"authorized_keys"`
 	PasswordAuthentication *bool    `json:"password_authentication"`
+	// DisableAfterBoot (Go duration) blocks new SSH connections once the
+	// server has been up this long and no SSH session is active.
+	DisableAfterBoot string `json:"disable_after_boot,omitempty"`
+	// Disabled is reported back: new SSH connections are blocked.
+	Disabled bool `json:"disabled,omitempty"`
 }
 
 const (
@@ -48,10 +54,82 @@ fi
 sshd -T 2>/dev/null | grep -i '^passwordauthentication '
 `
 
+// sshGateScript runs in the console container (host network). With
+// "disable" it blocks new connections to the sshd ports unless an SSH
+// connection is established, with "enable" it removes that block. Prints
+// "disabled", "active <n>" or "enabled".
+const sshGateScript = `ports=$(sshd -T 2>/dev/null | awk '$1 == "port" {print $2}')
+[ -n "$ports" ] || ports=22
+rule() { echo "INPUT -p tcp --dport $1 --syn -m comment --comment burmilla-fleet-ssh-disabled -j DROP"; }
+case "$1" in
+disable)
+  n=0
+  for p in $ports; do
+    n=$((n + $(ss -Htn state established "( sport = :$p )" | wc -l)))
+  done
+  if [ "$n" -gt 0 ]; then echo "active $n"; exit 0; fi
+  for p in $ports; do
+    iptables -C $(rule $p) 2>/dev/null || iptables -I $(rule $p) || exit 1
+    ip6tables -C $(rule $p) 2>/dev/null || ip6tables -I $(rule $p) 2>/dev/null || true
+  done
+  echo disabled
+  ;;
+*)
+  for p in $ports; do
+    while iptables -D $(rule $p) 2>/dev/null; do :; done
+    while ip6tables -D $(rule $p) 2>/dev/null; do :; done
+  done
+  echo enabled
+  ;;
+esac
+`
+
+// sshGate blocks or unblocks new SSH connections for disable_after_boot.
+// It returns whether SSH is blocked and, while it waits for the deadline
+// or for open sessions to end, how soon to check again.
+func (c *client) sshGate(after string, boot, now time.Time) (bool, time.Duration, error) {
+	d, _ := time.ParseDuration(after)
+	action := "enable"
+	if d > 0 && !boot.IsZero() {
+		if left := boot.Add(d).Sub(now); left > 0 {
+			// Not yet: SSH stays open, check again at the deadline.
+			_, err := c.gate("enable")
+			return false, max(left, 10*time.Second), err
+		}
+		action = "disable"
+	}
+	out, err := c.gate(action)
+	if err != nil {
+		return false, 0, err
+	}
+	if strings.HasPrefix(out, "active") {
+		return false, time.Minute, nil
+	}
+	return out == "disabled", 0, nil
+}
+
+func (c *client) gate(action string) (string, error) {
+	out, err := c.console("sh", "-c", sshGateScript, "sh", action)
+	if err != nil {
+		return "", fmt.Errorf("ssh %s: %v", action, err)
+	}
+	return out, nil
+}
+
 // applySSH applies the desired SSH settings and returns the resulting
 // state for the report.
-func (c *client) applySSH(d SSH) (*SSH, error) {
+func (c *client) applySSH(d SSH, boot time.Time) (*SSH, time.Duration, error) {
 	st := &SSH{}
+	disabled, recheck, gateErr := c.sshGate(d.DisableAfterBoot, boot, time.Now())
+	st.Disabled = disabled
+	st2, err := c.applySSHConfig(d, st)
+	if err == nil {
+		err = gateErr
+	}
+	return st2, recheck, err
+}
+
+func (c *client) applySSHConfig(d SSH, st *SSH) (*SSH, error) {
 	if d.AuthorizedKeys != nil {
 		keys, err := c.applyKeys(d.AuthorizedKeys)
 		if err != nil {

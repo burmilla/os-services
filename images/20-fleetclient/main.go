@@ -130,11 +130,7 @@ func main() {
 	log.Printf("fleet-client %s: %s (swarm %q, environment %q) reporting to %s", Version, c.hostname, c.swarm, c.env, c.manager)
 
 	for {
-		next := c.run()
-		if c.interval > 0 {
-			next = c.interval
-		}
-		time.Sleep(next)
+		time.Sleep(c.run())
 	}
 }
 
@@ -165,13 +161,19 @@ func (c *client) run() time.Duration {
 		return time.Minute
 	}
 	interval := time.Duration(d.CheckIntervalSeconds) * time.Second
+	if c.interval > 0 {
+		interval = c.interval
+	}
 	if interval <= 0 {
 		interval = 5 * time.Minute
 	}
 
 	// SSH settings do not interrupt workloads, so they are applied right
 	// away and before a possible reboot.
-	ssh, sshErr := c.applySSH(d.SSH)
+	ssh, recheck, sshErr := c.applySSH(d.SSH, rep.BootTime)
+	if recheck > 0 && recheck < interval {
+		interval = recheck
+	}
 	sshChanged := !reflect.DeepEqual(ssh, c.ssh)
 	c.ssh, rep.SSH = ssh, ssh
 
