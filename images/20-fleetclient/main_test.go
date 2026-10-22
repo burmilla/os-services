@@ -155,3 +155,18 @@ func TestContainerStatus(t *testing.T) {
 		t.Fatalf("crash: %+v", got)
 	}
 }
+
+func TestAPIBase(t *testing.T) {
+	for _, c := range []struct{ swarm, env, want string }{
+		{"", "", "/api/v1"},
+		{"swarm-a", "production", "/api/v1/swarms/swarm-a/production"},
+		{"a b", "x/y", "/api/v1/swarms/a%20b/x%2Fy"},
+		{"swarm-a", "", ""},
+		{"", "production", ""},
+	} {
+		got, err := apiBase(c.swarm, c.env)
+		if got != c.want || (err != nil) != (c.want == "") {
+			t.Errorf("apiBase(%q, %q) = %q, %v", c.swarm, c.env, got, err)
+		}
+	}
+}

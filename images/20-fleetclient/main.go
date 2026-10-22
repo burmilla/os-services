@@ -16,6 +16,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"reflect"
@@ -90,6 +91,7 @@ type Report struct {
 
 type client struct {
 	manager    string
+	api        string // base path, names the Swarm + Environment
 	user, pass string
 	swarm      string
 	env        string
@@ -128,6 +130,11 @@ func main() {
 	if c.hostname == "" {
 		c.hostname, _ = os.Hostname()
 	}
+	api, err := apiBase(c.swarm, c.env)
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.api = api
 	log.Printf("fleet-client %s: %s (swarm %q, environment %q) reporting to %s", Version, c.hostname, c.swarm, c.env, c.manager)
 
 	for {
@@ -491,12 +498,24 @@ func updateInProgress(state string) bool {
 	return false
 }
 
+// apiBase returns the Fleet Manager API path of a server. The Swarm and
+// Environment in the path are what make the server a member of them.
+func apiBase(swarm, env string) (string, error) {
+	switch {
+	case swarm == "" && env == "":
+		return "/api/v1", nil
+	case swarm == "" || env == "":
+		return "", fmt.Errorf("FLEET_SWARM and FLEET_ENVIRONMENT must be set together")
+	}
+	return "/api/v1/swarms/" + url.PathEscape(swarm) + "/" + url.PathEscape(env), nil
+}
+
 func (c *client) post(path string, body any) (*http.Response, error) {
 	data, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, c.manager+path, bytes.NewReader(data))
+	req, err := http.NewRequest(http.MethodPost, c.manager+c.api+path, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
@@ -530,7 +549,7 @@ func transport(caFile string) http.RoundTripper {
 }
 
 func (c *client) report(rep *Report) (*Desired, error) {
-	resp, err := c.post("/api/v1/report", rep)
+	resp, err := c.post("/report", rep)
 	if err != nil {
 		return nil, err
 	}
@@ -544,9 +563,7 @@ func (c *client) report(rep *Report) (*Desired, error) {
 }
 
 func (c *client) lock(reason string) (bool, string, error) {
-	resp, err := c.post("/api/v1/maintenance/lock", map[string]string{
-		"hostname": c.hostname, "swarm": c.swarm, "environment": c.env, "reason": reason,
-	})
+	resp, err := c.post("/maintenance/lock", map[string]string{"hostname": c.hostname, "reason": reason})
 	if err != nil {
 		log.Printf("maintenance lock request failed: %v", err)
 		return false, "", err
