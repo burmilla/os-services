@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,7 @@ type Desired struct {
 	MaintenanceWindowNext   string   `json:"maintenance_window_next_start"`
 	MaintenanceRequired     bool     `json:"maintenance_required"`
 	MaintenanceReasons      []string `json:"maintenance_reasons"`
+	SSH                     SSH      `json:"ssh"`
 }
 
 type SwarmStatus struct {
@@ -71,17 +73,19 @@ type ServiceState struct {
 }
 
 type Report struct {
-	Hostname      string       `json:"hostname"`
-	Swarm         string       `json:"swarm"`
-	Environment   string       `json:"environment"`
-	OSVersion     string       `json:"os_version"`
-	DockerVersion string       `json:"docker_version"`
-	KernelVersion string       `json:"kernel_version"`
-	ClientVersion string       `json:"client_version"`
-	BootTime      time.Time    `json:"boot_time"`
-	State         string       `json:"state"`
-	Message       string       `json:"message"`
-	SwarmStatus   *SwarmStatus `json:"swarm_status,omitempty"`
+	Hostname      string           `json:"hostname"`
+	Swarm         string           `json:"swarm"`
+	Environment   string           `json:"environment"`
+	OSVersion     string           `json:"os_version"`
+	DockerVersion string           `json:"docker_version"`
+	KernelVersion string           `json:"kernel_version"`
+	ClientVersion string           `json:"client_version"`
+	BootTime      time.Time        `json:"boot_time"`
+	State         string           `json:"state"`
+	Message       string           `json:"message"`
+	SwarmStatus   *SwarmStatus     `json:"swarm_status,omitempty"`
+	Containers    *ContainerStatus `json:"containers,omitempty"`
+	SSH           *SSH             `json:"ssh,omitempty"`
 }
 
 type client struct {
@@ -93,6 +97,8 @@ type client struct {
 	interval   time.Duration
 	http       *http.Client
 	docker     *http.Client
+	homeDir    string
+	ssh        *SSH // state of the last applied SSH settings
 	state, msg string
 }
 
@@ -106,6 +112,7 @@ func main() {
 		pass:     os.Getenv("FLEET_PASSWORD"),
 		http:     &http.Client{Timeout: 30 * time.Second, Transport: transport(os.Getenv("FLEET_CA_CERT"))},
 		docker:   unixClient(envOr("FLEET_DOCKER_SOCK", "/run/docker.sock")),
+		homeDir:  "/home",
 		state:    "idle",
 	}
 	if c.manager == "" {
@@ -124,11 +131,7 @@ func main() {
 	log.Printf("fleet-client %s: %s (swarm %q, environment %q) reporting to %s", Version, c.hostname, c.swarm, c.env, c.manager)
 
 	for {
-		next := c.run()
-		if c.interval > 0 {
-			next = c.interval
-		}
-		time.Sleep(next)
+		time.Sleep(c.run())
 	}
 }
 
@@ -159,12 +162,27 @@ func (c *client) run() time.Duration {
 		return time.Minute
 	}
 	interval := time.Duration(d.CheckIntervalSeconds) * time.Second
+	if c.interval > 0 {
+		interval = c.interval
+	}
 	if interval <= 0 {
 		interval = 5 * time.Minute
 	}
 
+	// SSH settings do not interrupt workloads, so they are applied right
+	// away and before a possible reboot.
+	ssh, recheck, sshErr := c.applySSH(d.SSH, rep.BootTime)
+	if recheck > 0 && recheck < interval {
+		interval = recheck
+	}
+	sshChanged := !reflect.DeepEqual(ssh, c.ssh)
+	c.ssh, rep.SSH = ssh, ssh
+
 	state, msg := c.act(d, rep)
-	if state != c.state || msg != c.msg {
+	if sshErr != nil && state == "idle" {
+		state, msg = "error", "ssh: "+sshErr.Error()
+	}
+	if state != c.state || msg != c.msg || sshChanged {
 		if msg != "" {
 			log.Printf("%s: %s", state, msg)
 		}
@@ -267,6 +285,23 @@ func run(name string, args ...string) error {
 	return nil
 }
 
+// capture runs a command and returns its output, with the last line of
+// the output in the error.
+func capture(name string, args ...string) (string, error) {
+	var out bytes.Buffer
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(out.String())
+		if i := strings.LastIndex(msg, "\n"); i >= 0 {
+			msg = msg[i+1:]
+		}
+		return "", fmt.Errorf("%v: %s", err, msg)
+	}
+	return strings.TrimSpace(out.String()), nil
+}
+
 func output(name string, args ...string) string {
 	out, err := exec.Command(name, args...).Output()
 	if err != nil {
@@ -287,12 +322,19 @@ func (c *client) collect() *Report {
 		BootTime:      bootTime(),
 		State:         c.state,
 		Message:       c.msg,
+		SSH:           c.ssh,
 	}
 	st, err := c.swarmStatus()
 	if err != nil {
 		log.Printf("cannot read Swarm status: %v", err)
 	} else {
 		rep.SwarmStatus = st
+	}
+	cs, err := c.containerStatus()
+	if err != nil {
+		log.Printf("cannot read container status: %v", err)
+	} else {
+		rep.Containers = cs
 	}
 	return rep
 }

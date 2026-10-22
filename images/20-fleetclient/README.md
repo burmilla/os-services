@@ -10,7 +10,11 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
    kernel, boot time and the Docker Swarm status of the node (from the User
    Docker API). Managers also send node and manager counts and the state of
    every service: desired vs. running tasks and whether an update is in
-   progress.
+   progress. Every server also reports its local User Docker containers
+   which Docker restarts on its own (restart policy `always`,
+   `unless-stopped` or `on-failure`, Swarm tasks excluded): ready means
+   running and, with a health check, healthy. Label a container
+   `io.burmilla.fleet.ignore=true` to leave it out.
 2. Gets back the target versions, upgrade policy, maintenance window and
    whether a scheduled restart is due.
 3. Depending on `upgrade_policy`:
@@ -18,12 +22,31 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
    * `download` – pre-pulls the target BurmillaOS image.
    * `auto` – inside the maintenance window, asks Fleet Manager for a
      **maintenance lock**. The lock is only granted when the whole Swarm is
-     healthy (all nodes ready and all services running their desired tasks
-     with their target configuration) and the Swarm + Environment has a free
+     healthy (all nodes ready, all services running their desired tasks
+     with their target configuration and all local containers with a
+     restart policy ready) and the Swarm + Environment has a free
      slot. With the lock it runs
      `ros engine switch` (User Docker), then `ros os upgrade` (reboots) or a
      plain reboot for a scheduled restart. The lock is released by Fleet Manager
      once the server reports the target state and the Swarm is healthy again.
+4. Applies the `ssh` settings right away, in any upgrade policy and without a
+   maintenance lock:
+   * `authorized_keys` go to a block between `# BEGIN burmilla-fleet-manager`
+     and `# END burmilla-fleet-manager` in `~/.ssh/authorized_keys` of the
+     `rancher` and `docker` users. Other keys in the file (from cloud-config
+     `ssh_authorized_keys` or added by hand) are not touched.
+   * `password_authentication` is written to
+     `/etc/ssh/sshd_config.d/50-burmilla-fleet.conf` in the console container
+     (`system-docker exec console`) and sshd is reloaded; open sessions stay.
+     The effective value (`sshd -T`) is reported back. Consoles whose
+     `sshd_config` does not include `sshd_config.d` report an error.
+   * `disable_after_boot` (e.g. `10m`): once the server has been up that
+     long and no SSH connection is established, sshd of the console is
+     stopped with `ros console sshd disable --if-idle`. While a session is
+     open it checks again every minute. sshd starts again after every
+     reboot; `0` enables it right away (`ros console sshd enable`), unset
+     leaves it as it is. Needs a BurmillaOS version which has
+     `ros console sshd`; older versions report an error.
 
 ## Enable
 

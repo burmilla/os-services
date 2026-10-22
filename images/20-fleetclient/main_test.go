@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -105,5 +106,52 @@ func TestActWaits(t *testing.T) {
 	}
 	if state, _ := c.act(&Desired{}, &Report{}); state != "idle" {
 		t.Fatal("nothing to do should be idle")
+	}
+}
+
+func TestContainerStatus(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "docker.sock")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inspect := map[string]string{
+		"web":     `{"Name":"/web","State":{"Status":"running","Running":true,"Health":{"Status":"healthy"}},"HostConfig":{"RestartPolicy":{"Name":"always"}}}`,
+		"db":      `{"Name":"/db","State":{"Status":"running","Running":true,"Health":{"Status":"starting"}},"HostConfig":{"RestartPolicy":{"Name":"unless-stopped"}}}`,
+		"job":     `{"Name":"/job","State":{"Status":"exited","ExitCode":0},"HostConfig":{"RestartPolicy":{"Name":"on-failure"}}}`,
+		"crash":   `{"Name":"/crash","State":{"Status":"restarting","Restarting":true,"ExitCode":1},"HostConfig":{"RestartPolicy":{"Name":"always"}}}`,
+		"oneshot": `{"Name":"/oneshot","State":{"Status":"exited","ExitCode":1},"HostConfig":{"RestartPolicy":{"Name":"no"}}}`,
+	}
+	srv := &httptest.Server{Listener: l, Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/containers/json" {
+			w.Write([]byte(`[{"Id":"web"},{"Id":"db"},{"Id":"job"},{"Id":"crash"},{"Id":"oneshot"},
+				{"Id":"task","Labels":{"com.docker.swarm.task.id":"x"}},
+				{"Id":"skip","Labels":{"io.burmilla.fleet.ignore":"true"}}]`))
+			return
+		}
+		id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/containers/"), "/json")
+		body, ok := inspect[id]
+		if !ok {
+			t.Errorf("unexpected inspect of %s", id)
+			http.NotFound(w, r)
+			return
+		}
+		w.Write([]byte(body))
+	})}}
+	srv.Start()
+	defer srv.Close()
+
+	st, err := (&client{docker: unixClient(sock)}).containerStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Containers != 4 || st.ContainersReady != 2 || len(st.ContainersNotReady) != 2 {
+		t.Fatalf("got %+v", *st)
+	}
+	if got := st.ContainersNotReady[0]; got.Name != "db" || got.Health != "starting" {
+		t.Fatalf("db: %+v", got)
+	}
+	if got := st.ContainersNotReady[1]; got.Name != "crash" || got.State != "restarting" {
+		t.Fatalf("crash: %+v", got)
 	}
 }
