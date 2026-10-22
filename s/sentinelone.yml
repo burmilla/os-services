@@ -1,0 +1,26 @@
+# Docs: https://github.com/burmilla/os-services/blob/v3.0.x/images/20-sentinelone/README.md
+sentinelone:
+  image: ${REGISTRY_DOMAIN}/burmilla/os-sentinelone:v1.0.0
+  environment:
+  - SENTINELONE_*
+  - HTTP_PROXY
+  - HTTPS_PROXY
+  - NO_PROXY
+  labels:
+    io.rancher.os.scope: system
+    io.rancher.os.after: docker
+  privileged: true
+  restart: always
+  pid: host
+  ipc: host
+  net: host
+  uts: host
+  volumes_from:
+  - command-volumes
+  - system-volumes
+  - user-volumes
+  - container-data-volumes
+  volumes:
+  - /dev:/dev
+  - /sys:/sys
+  - /var/lib/sentinelone:/opt/sentinelone
