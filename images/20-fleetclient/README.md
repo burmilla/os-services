@@ -75,13 +75,16 @@ rancher:
     fleet-client: true
 ```
 
-Swarm and Environment can also be assigned centrally in the `servers:`
-section of the fleet configuration, which wins over the values above.
+`FLEET_SWARM` and `FLEET_ENVIRONMENT` decide which Swarm + Environment the
+server belongs to: fleet-client calls
+`/api/v1/swarms/<FLEET_SWARM>/<FLEET_ENVIRONMENT>/...` on Fleet Manager
+(`/api/v1/...` when neither is set). They must be set together. Needs Fleet
+Manager v1.1.0 or later.
 
 | Variable            | Default            | Description                                    |
 |---------------------|--------------------|------------------------------------------------|
 | `FLEET_MANAGER_URL` |                    | Fleet Manager address (required)               |
-| `FLEET_SWARM`       |                    | Swarm this server belongs to                   |
+| `FLEET_SWARM`       |                    | Swarm (or standalone group) this server belongs to |
 | `FLEET_ENVIRONMENT` |                    | Environment this server belongs to             |
 | `FLEET_USERNAME`    |                    | User of the Swarm + Environment when it is protected with `htpasswd` in the fleet configuration |
 | `FLEET_PASSWORD`    |                    | Password for `FLEET_USERNAME`                  |
