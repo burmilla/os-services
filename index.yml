@@ -18,3 +18,4 @@ services:
 engines:
 - docker-25.0.14
 - docker-29.6.1
+- docker-29.9.2
