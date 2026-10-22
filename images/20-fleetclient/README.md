@@ -36,11 +36,12 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
      The effective value (`sshd -T`) is reported back. Consoles whose
      `sshd_config` does not include `sshd_config.d` report an error.
    * `disable_after_boot` (e.g. `10m`): once the server has been up that
-     long, new connections to the sshd port(s) are dropped with an
-     iptables / ip6tables rule (comment `burmilla-fleet-ssh-disabled`), but
-     only when no SSH connection is established; otherwise it checks again
-     every minute. The rule is not persisted, so SSH is open after every
-     boot, and it is removed right away when the setting is removed or `0`.
+     long and no SSH connection is established, sshd of the console is
+     stopped with `ros console sshd disable --if-idle`. While a session is
+     open it checks again every minute. sshd starts again after every
+     reboot; `0` enables it right away (`ros console sshd enable`), unset
+     leaves it as it is. Needs a BurmillaOS version which has
+     `ros console sshd`; older versions report an error.
 
 ## Enable
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,10 +16,10 @@ import (
 type SSH struct {
 	AuthorizedKeys         []string `json:"authorized_keys"`
 	PasswordAuthentication *bool    `json:"password_authentication"`
-	// DisableAfterBoot (Go duration) blocks new SSH connections once the
-	// server has been up this long and no SSH session is active.
+	// DisableAfterBoot (Go duration) stops sshd once the server has been
+	// up this long and no SSH session is active. "0s" enables it again.
 	DisableAfterBoot string `json:"disable_after_boot,omitempty"`
-	// Disabled is reported back: new SSH connections are blocked.
+	// Disabled is reported back: sshd is disabled.
 	Disabled bool `json:"disabled,omitempty"`
 }
 
@@ -48,72 +49,69 @@ KbdInteractiveAuthentication no"
     printf '%s\n' "$want" > $f.tmp
     mv $f.tmp $f
     sshd -t || { rm -f $f; exit 1; }
-    if [ -s /run/sshd.pid ]; then kill -HUP "$(cat /run/sshd.pid)"; fi
+    if [ -s /run/sshd.pid ]; then kill -HUP "$(cat /run/sshd.pid)" 2>/dev/null || true; fi
   fi
 fi
 sshd -T 2>/dev/null | grep -i '^passwordauthentication '
 `
 
-// sshGateScript runs in the console container (host network). With
-// "disable" it blocks new connections to the sshd ports unless an SSH
-// connection is established, with "enable" it removes that block. Prints
-// "disabled", "active <n>" or "enabled".
-const sshGateScript = `ports=$(sshd -T 2>/dev/null | awk '$1 == "port" {print $2}')
-[ -n "$ports" ] || ports=22
-rule() { echo "INPUT -p tcp --dport $1 --syn -m comment --comment burmilla-fleet-ssh-disabled -j DROP"; }
-case "$1" in
-disable)
-  n=0
-  for p in $ports; do
-    n=$((n + $(ss -Htn state established "( sport = :$p )" | wc -l)))
-  done
-  if [ "$n" -gt 0 ]; then echo "active $n"; exit 0; fi
-  for p in $ports; do
-    iptables -C $(rule $p) 2>/dev/null || iptables -I $(rule $p) || exit 1
-    ip6tables -C $(rule $p) 2>/dev/null || ip6tables -I $(rule $p) 2>/dev/null || true
-  done
-  echo disabled
-  ;;
-*)
-  for p in $ports; do
-    while iptables -D $(rule $p) 2>/dev/null; do :; done
-    while ip6tables -D $(rule $p) 2>/dev/null; do :; done
-  done
-  echo enabled
-  ;;
-esac
-`
-
-// sshGate blocks or unblocks new SSH connections for disable_after_boot.
-// It returns whether SSH is blocked and, while it waits for the deadline
-// or for open sessions to end, how soon to check again.
+// sshGate stops or starts sshd of the console for disable_after_boot
+// (ros console sshd, BurmillaOS with sshd disable support). Unset is not
+// managed, 0 enables sshd. It returns whether sshd is disabled and, while
+// it waits for the deadline or for open sessions to end, how soon to
+// check again.
 func (c *client) sshGate(after string, boot, now time.Time) (bool, time.Duration, error) {
+	status := sshdStatus()
+	if after == "" {
+		return status == "disabled", 0, nil
+	}
 	d, _ := time.ParseDuration(after)
-	action := "enable"
-	if d > 0 && !boot.IsZero() {
-		if left := boot.Add(d).Sub(now); left > 0 {
-			// Not yet: SSH stays open, check again at the deadline.
-			_, err := c.gate("enable")
-			return false, max(left, 10*time.Second), err
+	if d == 0 {
+		if status == "disabled" {
+			if _, err := capture(rosBin, "console", "sshd", "enable"); err != nil {
+				return true, 0, fmt.Errorf("enable sshd: %v", err)
+			}
+			log.Print("sshd enabled")
 		}
-		action = "disable"
+		return false, 0, nil
 	}
-	out, err := c.gate(action)
+	if boot.IsZero() {
+		return status == "disabled", 0, nil
+	}
+	if left := boot.Add(d).Sub(now); left > 0 {
+		return status == "disabled", max(left, 10*time.Second), nil
+	}
+	switch status {
+	case "disabled":
+		return true, 0, nil
+	case "enabled":
+	default:
+		return false, 0, fmt.Errorf("this BurmillaOS version cannot disable sshd (ros console sshd)")
+	}
+	out, err := capture(rosBin, "console", "sshd", "disable", "--if-idle")
 	if err != nil {
-		return false, 0, err
+		return false, 0, fmt.Errorf("disable sshd: %v", err)
 	}
-	if strings.HasPrefix(out, "active") {
+	if sshdStatus() != "disabled" {
+		// An SSH session is open, try again when it may have ended.
+		log.Printf("sshd: %s", out)
 		return false, time.Minute, nil
 	}
-	return out == "disabled", 0, nil
+	log.Printf("sshd disabled %s after boot", d)
+	return true, 0, nil
 }
 
-func (c *client) gate(action string) (string, error) {
-	out, err := c.console("sh", "-c", sshGateScript, "sh", action)
+// sshdStatus returns enabled, disabled or "" when not supported.
+func sshdStatus() string {
+	out, err := capture(rosBin, "console", "sshd", "status")
 	if err != nil {
-		return "", fmt.Errorf("ssh %s: %v", action, err)
+		return ""
 	}
-	return out, nil
+	switch out {
+	case "enabled", "disabled":
+		return out
+	}
+	return ""
 }
 
 // applySSH applies the desired SSH settings and returns the resulting
