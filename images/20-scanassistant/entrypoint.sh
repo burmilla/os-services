@@ -8,6 +8,8 @@ set -e
 # namespace, so nothing is left behind in the console when the service stops.
 
 STATE_DIR=/var/lib/rancher/scan-assistant
+CACHE_DIR=${STATE_DIR}-cache
+URL=${SCAN_ASSISTANT_URL:-https://download2.rapid7.com/download/InsightVM/R7ScanAssistant_amd64.deb}
 CERT_FILE=${SCAN_ASSISTANT_CERT_FILE:-/var/lib/rancher/conf/scan-assistant.pem}
 CONSOLE=${SCAN_ASSISTANT_CONSOLE:-console}
 
@@ -62,12 +64,49 @@ case "${SCAN_ASSISTANT_RESPONSE_TIMEOUT:-300}" in
 ''|*[!0-9]*) echo "SCAN_ASSISTANT_RESPONSE_TIMEOUT must be a number of seconds" >&2; exit 1 ;;
 esac
 
+# Rapid7 does not allow redistributing the Scan Assistant, so the latest
+# package is downloaded from Rapid7 on every start. The last verified package
+# is kept so the service also starts when the download fails.
+deb_valid() {
+    [ -f "$1" ] && [ -f "$2" ] && \
+        [ "$(sha512sum "$1" | cut -d' ' -f1)" = "$(cut -d' ' -f1 "$2" | tr 'A-F' 'a-f')" ]
+}
+
+mkdir -p ${CACHE_DIR}
+DEB=${CACHE_DIR}/R7ScanAssistant.deb
+SUM=${CACHE_DIR}/R7ScanAssistant.deb.sha512sum
+echo "Downloading ${URL}.sha512sum"
+if curl -fsSL --retry 3 -o ${SUM}.new "${URL}.sha512sum"; then
+    if deb_valid ${DEB} ${SUM}.new; then
+        echo "Cached Scan Assistant package is up to date"
+        mv ${SUM}.new ${SUM}
+    else
+        echo "Downloading ${URL}"
+        curl -fsSL --retry 3 -o ${DEB}.new "${URL}"
+        if ! deb_valid ${DEB}.new ${SUM}.new; then
+            echo "Checksum of the downloaded Scan Assistant package does not match ${URL}.sha512sum" >&2
+            rm -f ${DEB}.new ${SUM}.new
+            exit 1
+        fi
+        mv ${DEB}.new ${DEB}
+        mv ${SUM}.new ${SUM}
+    fi
+elif deb_valid ${DEB} ${SUM}; then
+    echo "Download failed, using the cached Scan Assistant package" >&2
+else
+    echo "Cannot download the Scan Assistant from ${URL}" >&2
+    exit 1
+fi
+echo "Scan Assistant package $(dpkg-deb -f ${DEB} Version)"
+
 # ClientCertificate takes the PEM on one line, like "cat scan-assistant.pem | xargs"
 ONE_LINE_CERT=$(echo "${CERT}" | tr -d '\r' | xargs)
 
 rm -rf ${STATE_DIR}
 mkdir -p ${STATE_DIR}/etc
-cp /usr/share/scan-assistant/ScanAssistant ${STATE_DIR}/ScanAssistant
+# The package scripts expect systemd or upstart, so the package is only
+# extracted and /usr/sbin/ScanAssistant is started from there
+dpkg-deb -x ${DEB} ${STATE_DIR}/pkg
 echo "${CERT}" > ${STATE_DIR}/etc/scan-assistant.pem
 cat > ${STATE_DIR}/etc/config.json <<JSON
 {
@@ -84,7 +123,7 @@ echo "Starting Scan Assistant in the ${CONSOLE} container (pid ${PID}), package 
 nsenter -t "${PID}" -m -- unshare -m --propagation private /bin/sh -c "
     mkdir -p /etc/rapid7/ScanAssistant &&
     mount --bind ${STATE_DIR}/etc /etc/rapid7/ScanAssistant &&
-    exec ${STATE_DIR}/ScanAssistant" &
+    exec ${STATE_DIR}/pkg/usr/sbin/ScanAssistant" &
 CHILD=$!
 
 trap 'kill ${CHILD} 2>/dev/null; wait ${CHILD}; exit 0' TERM INT

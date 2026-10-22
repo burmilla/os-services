@@ -5,10 +5,17 @@ Optional system service which runs the Linux
 for InsightVM / Nexpose credentialed scans. The Scan Engine connects to it on
 TCP port **21047** (TLS) instead of logging in with SSH.
 
-The image contains `/usr/sbin/ScanAssistant` from Rapid7's
-`R7ScanAssistant_amd64.deb` (amd64 only, Rapid7 publishes no arm64 Linux
-package). The package is extracted at build time; its install scripts, which
-expect systemd or upstart, are not run.
+Rapid7 does not allow redistributing the Scan Assistant, so the image does
+not contain it. On every start the service downloads the latest
+`R7ScanAssistant_amd64.deb` from `download2.rapid7.com`, checks it against
+the published `.sha512sum` and runs `/usr/sbin/ScanAssistant` from it (amd64
+only, Rapid7 publishes no arm64 Linux package). The install scripts of the
+package, which expect systemd or upstart, are not run. The last verified
+package is kept in `/var/lib/rancher/scan-assistant-cache`, so the service
+also starts when Rapid7 cannot be reached, but the first start needs
+internet access (or `SCAN_ASSISTANT_URL` pointing to an internal mirror).
+`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` from `rancher.environment` are
+used for the download.
 
 ## What it scans
 
@@ -76,6 +83,7 @@ sudo ros service up rapid7-scan-assistant
 
 | Variable                          | Default                                  | Description |
 |-----------------------------------|------------------------------------------|-------------|
+| `SCAN_ASSISTANT_URL`             | `https://download2.rapid7.com/download/InsightVM/R7ScanAssistant_amd64.deb` | Package to download, `<URL>.sha512sum` must exist next to it |
 | `SCAN_ASSISTANT_CERT_FILE`        | `/var/lib/rancher/conf/scan-assistant.pem` | Certificate (PEM) file |
 | `SCAN_ASSISTANT_CERT`             |                                          | Certificate (PEM) as a value, wins over the file |
 | `SCAN_ASSISTANT_RESPONSE_TIMEOUT` | `300`                                    | `ResponseTimeout` in `config.json` (seconds) |
@@ -95,14 +103,5 @@ Logs: `sudo system-docker logs rapid7-scan-assistant`.
   template and allow it from the Scan Engine to the server.
 * Scan Engine 6.6.153 or later is required.
 * Turn off Scan Assistant software updates in the scan template. The service
-  cannot be updated in place. A new Scan Assistant version comes with a new
-  image version of this service.
-
-## Building
-
-`images/20-scanassistant` downloads the latest package from
-`download2.rapid7.com` and checks its `.sha512sum`. Rapid7 does not version
-the download URL, so build the image with the build-service workflow
-(`IMAGE_BUILD_NAME=20-scanassistant`) and a new `VERSION` whenever a new Scan
-Assistant should be shipped, and update the tag in
-`r/rapid7-scan-assistant.yml`. The build log prints the packaged version.
+  cannot be updated in place. Restart it to update to the latest Scan
+  Assistant: `sudo system-docker restart rapid7-scan-assistant`.

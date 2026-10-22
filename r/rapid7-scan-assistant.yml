@@ -3,6 +3,9 @@ rapid7-scan-assistant:
   image: ${REGISTRY_DOMAIN}/burmilla/os-scanassistant:v1.0.0
   environment:
   - SCAN_ASSISTANT_*
+  - HTTP_PROXY
+  - HTTPS_PROXY
+  - NO_PROXY
   labels:
     io.rancher.os.scope: system
     io.rancher.os.after: console
