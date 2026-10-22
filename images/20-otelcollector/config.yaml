@@ -1,0 +1,192 @@
+# Default configuration of the BurmillaOS otel-collector system service.
+# Exports everything to ${OTELCOL_ENDPOINT} with OTLP/gRPC.
+
+extensions:
+  file_storage:
+    directory: /var/lib/otelcol/file_storage
+    create_directory: true
+
+  docker_observer/docker:
+    endpoint: unix:///var/run/docker.sock
+    api_version: "1.44"
+    include_all_containers: true
+
+  docker_observer/system-docker:
+    endpoint: unix:///var/run/system-docker.sock
+    api_version: "1.44"
+    include_all_containers: true
+
+receivers:
+  otlp/localhost:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+      http:
+        endpoint: 127.0.0.1:4318
+
+  prometheus/collector:
+    config:
+      scrape_configs:
+        - job_name: "opentelemetry-collector"
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["127.0.0.1:8888"]
+
+  host_metrics:
+    collection_interval: 30s
+    # Host root filesystem is mounted to /hostfs
+    root_path: /hostfs
+    scrapers:
+      cpu:
+      memory:
+      disk:
+      filesystem:
+        exclude_fs_types:
+          fs_types: [autofs, binfmt_misc, bpf, cgroup2, configfs, debugfs, devpts, fusectl, hugetlbfs,
+                     mqueue, nsfs, overlay, proc, pstore, securityfs, sysfs, tracefs]
+          match_type: strict
+      network:
+      load:
+      process:
+        mute_process_all_errors: true
+        metrics:
+          process.cpu.utilization:
+            enabled: true
+          process.memory.utilization:
+            enabled: true
+      system:
+
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 30s
+    timeout: 5s
+    api_version: "1.44"
+    container_labels_to_metric_labels:
+      # Docker Swarm
+      com.docker.swarm.task.name: task_name
+      com.docker.swarm.service.name: job_name
+
+  # BurmillaOS does not run journald. System logs are written by rsyslog
+  # to /var/log/syslog and container logs by the json-file log driver of
+  # System Docker and User Docker.
+  file_log/syslog:
+    include: [/var/log/syslog]
+    start_at: beginning
+    storage: file_storage
+    operators:
+      - type: regex_parser
+        regex: '^(?P<timestamp>[A-Z][a-z]{2} +\d+ \d{2}:\d{2}:\d{2}|\S+) (?P<hostname>\S+) (?P<ident>[^\s:\[]+)(\[(?P<pid>\d+)\])?: ?(?P<message>.*)$'
+        on_error: send_quiet
+
+  receiver_creator/docker:
+    watch_observers: [docker_observer/docker]
+    receivers:
+      file_log:
+        # One endpoint per container, the others are per exposed port
+        rule: type == "container" && port == 0
+        config:
+          include: ['/var/lib/docker/containers/`container_id`/`container_id`-json.log']
+          start_at: beginning
+          storage: file_storage
+          operators:
+            - type: container
+              format: docker
+              add_metadata_from_filepath: false
+        resource_attributes:
+          container.id: '`container_id`'
+          docker.engine: user
+
+  receiver_creator/system-docker:
+    watch_observers: [docker_observer/system-docker]
+    receivers:
+      file_log:
+        rule: type == "container" && port == 0 && name != "otel-collector"
+        config:
+          include: ['/var/lib/system-docker/containers/`container_id`/`container_id`-json.log']
+          start_at: beginning
+          storage: file_storage
+          operators:
+            - type: container
+              format: docker
+              add_metadata_from_filepath: false
+        resource_attributes:
+          container.id: '`container_id`'
+          docker.engine: system
+
+processors:
+  groupbyattrs/service:
+    keys: [service.name]
+
+  batch:
+    send_batch_size: 1000
+    timeout: 5s
+
+  resource_detection/system:
+    detectors: ["system"]
+    system:
+      hostname_sources: ["os"]
+
+  transform/syslog:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - set(log.attributes["service.name"], "unknown")
+          - set(log.attributes["service.name"], log.attributes["ident"]) where log.attributes["ident"] != nil
+          - set(log.attributes["syslog.identifier"], log.attributes["ident"]) where log.attributes["ident"] != nil
+          - set(log.attributes["process.pid"], Int(log.attributes["pid"])) where log.attributes["pid"] != nil
+          - set(log.body, log.attributes["message"]) where log.attributes["message"] != nil
+          - delete_matching_keys(log.attributes, "^(timestamp|hostname|ident|pid|message)$")
+          - set(log.severity_number, SEVERITY_NUMBER_INFO)
+          - set(log.severity_text, "INFO")
+
+  transform/containers:
+    error_mode: ignore
+    log_statements:
+      - context: log
+        statements:
+          - replace_pattern(log.body, "\\r?\\n$", "")
+          # stdout -> INFO, stderr -> ERROR
+          - set(log.severity_number, SEVERITY_NUMBER_INFO) where log.attributes["log.iostream"] == "stdout"
+          - set(log.severity_number, SEVERITY_NUMBER_ERROR) where log.attributes["log.iostream"] == "stderr"
+          - set(log.severity_text, "INFO") where log.severity_number == SEVERITY_NUMBER_INFO
+          - set(log.severity_text, "ERROR") where log.severity_number == SEVERITY_NUMBER_ERROR
+
+          # service.name: Swarm service name, otherwise container name.
+          # Set as regular attribute first; groupbyattrs processor promotes it to resource attribute
+          - set(log.attributes["service.name"], resource.attributes["container.name"])
+          - replace_pattern(log.attributes["service.name"], "^(.+)\\.[^.]+\\.[a-z0-9]{25}$", "$$1")
+
+exporters:
+  otlp_grpc:
+    endpoint: ${env:OTELCOL_ENDPOINT}
+    tls:
+      insecure: ${env:OTELCOL_TLS_INSECURE}
+
+service:
+  extensions: [file_storage, docker_observer/docker, docker_observer/system-docker]
+  pipelines:
+    traces/localhost:
+      receivers: [otlp/localhost]
+      processors: [batch]
+      exporters: [otlp_grpc]
+    metrics/localhost:
+      receivers: [otlp/localhost]
+      processors: [batch]
+      exporters: [otlp_grpc]
+    logs/localhost:
+      receivers: [otlp/localhost]
+      processors: [batch]
+      exporters: [otlp_grpc]
+    metrics:
+      receivers: [prometheus/collector, host_metrics, docker_stats]
+      processors: [resource_detection/system, batch]
+      exporters: [otlp_grpc]
+    logs/syslog:
+      receivers: [file_log/syslog]
+      processors: [transform/syslog, groupbyattrs/service, resource_detection/system, batch]
+      exporters: [otlp_grpc]
+    logs/containers:
+      receivers: [receiver_creator/docker, receiver_creator/system-docker]
+      processors: [transform/containers, groupbyattrs/service, resource_detection/system, batch]
+      exporters: [otlp_grpc]
