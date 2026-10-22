@@ -2,6 +2,7 @@ services:
 - amazon-ecs-agent
 - container-cron
 - fleet-client
+- otel-collector
 - zfs
 - kernel-extras
 - kernel-headers
