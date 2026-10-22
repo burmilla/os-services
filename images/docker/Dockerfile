@@ -2,8 +2,9 @@ ARG DOCKER_VERSION
 FROM docker:${DOCKER_VERSION}-dind AS dind
 FROM scratch
 COPY engine/* /engine/
-COPY --from=dind /usr/local/bin/containerd /engine/
-COPY --from=dind /usr/local/bin/containerd-shim-runc-v2 /engine/
+# Since 29.9.0 the dind image no longer ships containerd because dockerd
+# uses its embedded containerd, so copy it only when it is there.
+COPY --from=dind /usr/local/bin/containerd* /engine/
 COPY --from=dind /usr/local/bin/ctr /engine/
 COPY --from=dind /usr/local/bin/docker /engine/
 COPY --from=dind /usr/local/bin/docker-init /engine/
