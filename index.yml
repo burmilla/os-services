@@ -17,4 +17,15 @@ services:
 - azure-identity
 engines:
 - docker-25.0.14
+- docker-25.0.17
+- docker-25.0.18
 - docker-29.6.1
+- docker-29.6.2
+- docker-29.7.1
+- docker-29.7.2
+- docker-29.8.0
+- docker-29.8.1
+- docker-29.8.2
+- docker-29.9.0
+- docker-29.9.1
+- docker-29.9.2

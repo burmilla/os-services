@@ -1,40 +1,20 @@
-FROM ubuntu:focal
-# FROM arm64=arm64v8/ubuntu:focal
+# Built on the BurmillaOS host by build.sh with system-docker.
+# BASE_IMAGE is the os-zfs image the build ran in, which is already present
+# locally, so system-docker does not need to pull anything and the userland
+# runs against the same glibc it was compiled with.
+ARG BASE_IMAGE=debian:trixie-slim
+FROM ${BASE_IMAGE}
 
-RUN apt-get update \
-    && apt-get install -yq python \
-    && rm -rf /var/lib/apt/lists/*
+# Everything `make install DESTDIR=...` produced (minus kernel modules, see
+# .dockerignore written by build.sh). Copying whole directories keeps the
+# shared library symlinks intact, so there is no per-soname fix-up needed.
+COPY . /
 
-ADD entry.sh /usr/local/bin/
-ADD sbin/* /sbin/
-ADD usr/local/sbin/* /usr/local/sbin/
-ADD usr/local/bin/* /usr/local/bin/
-ADD usr/local/lib/* /usr/local/lib/
-ADD usr/local/libexec/* /usr/local/libexec/
-ADD setup_wonka.sh /setup_wonka.sh
-ADD lib/udev/zvol_id /lib/udev/zvol_id
-ADD lib/udev/vdev_id /lib/udev/vdev_id
-ADD lib/udev/rules.d/60-zvol.rules /lib/udev/rules.d/60-zvol.rules
-ADD lib/udev/rules.d/69-vdev.rules /lib/udev/rules.d/69-vdev.rules
-ADD lib/udev/rules.d/90-zfs.rules /lib/udev/rules.d/90-zfs.rules
-
-# fix build warnings
-RUN mv /usr/local/lib/libnvpair.so.3 /usr/local/lib/libnvpair.so.3.file
-RUN ln -s /usr/local/lib/libnvpair.so.3.file /usr/local/lib/libnvpair.so.3
-RUN mv /usr/local/lib/libzfs_core.so.3 /usr/local/lib/libzfs_core.so.3.file
-RUN ln -s /usr/local/lib/libzfs_core.so.3.file /usr/local/lib/libzfs_core.so.3
-RUN mv /usr/local/lib/libuutil.so.3 /usr/local/lib/libuutil.so.3.file
-RUN ln -s /usr/local/lib/libuutil.so.3.file /usr/local/lib/libuutil.so.3
-RUN mv /usr/local/lib/libzfs.so.4 /usr/local/lib/libzfs.so.4.file
-RUN ln -s /usr/local/lib/libzfs.so.4.file /usr/local/lib/libzfs.so.4
-RUN mv /usr/local/lib/libzpool.so.4 /usr/local/lib/libzpool.so.4.file
-RUN ln -s /usr/local/lib/libzpool.so.4.file /usr/local/lib/libzpool.so.4
-RUN mv /usr/local/lib/libzfsbootenv.so.1 /usr/local/lib/libzfsbootenv.so.1.file
-RUN ln -s /usr/local/lib/libzfsbootenv.so.1.file /usr/local/lib/libzfsbootenv.so.1
-
-ENV PATH=$PATH:/usr/local/lib
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+ENV PATH=$PATH:/usr/local/sbin:/usr/local/bin
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
 RUN ldconfig
 
+WORKDIR /
+CMD []
 ENTRYPOINT ["/usr/local/bin/entry.sh"]

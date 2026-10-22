@@ -1,13 +1,14 @@
 $files = Get-ChildItem -Path ./d -Include "docker-*" -Exclude "docker-compose.yml" -Recurse
-$filesShorted = $files | Sort-Object -Descending
-$latestPublished = $filesShorted[0].Name -replace "docker-","" -replace ".yml",""
+# Sort numerically (string sort would put 29.10.0 below 29.9.2)
+$publishedVersions = $files.Name -replace "^docker-","" -replace "\.yml$","" | Where-Object { $_ -match '^\d+\.\d+\.\d+$' }
+$latestPublished = $publishedVersions | Sort-Object { [version]$_ } -Descending | Select-Object -First 1
 
 [array]$dockerVersionsToSkip = Get-Content ./.github/docker-versions-to-skip
 
 Write-Host "Getting latest Docker release tag to publish"
 $dockerReleases = Invoke-RestMethod -UseBasicParsing https://api.github.com/repos/moby/moby/releases
 $nonPreviewReleases =  $dockerReleases | Where-Object {$_.prerelease -eq $false}
-$versionsShorted = $nonPreviewReleases.name | Sort-Object -Descending
+$versionsShorted = $nonPreviewReleases.name -replace "^v","" | Where-Object { $_ -match '^\d+\.\d+\.\d+$' } | Sort-Object { [version]$_ } -Descending
 $latestMajor = ""
 $latestToPublish = ""
 forEach($v in $versionsShorted) {
@@ -28,12 +29,11 @@ if ($latestToPublish -in $dockerVersionsToSkip) {
 
 $PRs = Invoke-RestMethod -UseBasicParsing https://api.github.com/repos/burmilla/os-services/pulls?state=all
 $prTitle = "Add Docker $latestToPublish"
-$PRs | ForEach-Object {
-  if ($_.title -eq $prTitle) {
+# "return" inside ForEach-Object only ends that script block, so check with Where-Object instead
+if ($PRs | Where-Object { $_.title -eq $prTitle }) {
   Write-Host "Version $latestToPublish pull request already exist"
-    echo "CREATE_PR=false" >> $env:GITHUB_ENV
-    return
-  }
+  echo "CREATE_PR=false" >> $env:GITHUB_ENV
+  return
 }
 
 Write-Host "Version $latestToPublish is latest, trying to publish"    

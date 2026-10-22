@@ -1,4 +1,7 @@
-FROM gcc:14.2.0 as build-essential
+# Build and runtime stages must use the same Debian release (glibc):
+# binaries built against a newer glibc fail to start on an older one
+# (e.g. "GLIBC_2.34 not found" when built on bookworm and run on bullseye).
+FROM gcc:14.2.0-bookworm as build-essential
 # FROM arm64=skip arm=skip
 
 #RUN apt-get update && \
@@ -7,7 +10,7 @@ FROM gcc:14.2.0 as build-essential
 #    rm -rf /var/lib/apt/* \
 
 WORKDIR /dist
-ENV KERNEL_VERSION 6.12.95-burmilla
+ENV KERNEL_VERSION 6.12.114-burmilla
 ENV KERNEL_SRC https://github.com/burmilla/os-kernel/releases/download/v${KERNEL_VERSION}/linux-${KERNEL_VERSION}-x86-src.tgz
 
 RUN wget -q $KERNEL_SRC && \
@@ -21,7 +24,7 @@ RUN wget -q $KERNEL_SRC && \
     cp -a hv_set_ifconfig.sh /dist/scripts/hv_set_ifconfig && \
     cp lsvmbus /dist/bin
 
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 # FROM arm64=skip arm=skip
 
 RUN apt-get update && \
@@ -34,7 +37,8 @@ COPY --from=build-essential /dist/bin/* /usr/bin/
 COPY --from=build-essential /dist/scripts/* /usr/libexec/hypervkvpd/
 
 RUN chmod +x /usr/bin/hv_* && \
-    chmod +x /usr/bin/lsvmbus
+    chmod +x /usr/bin/lsvmbus && \
+    hv_kvp_daemon --help
 
 ENTRYPOINT ["/usr/bin/ros", "entrypoint"]
 

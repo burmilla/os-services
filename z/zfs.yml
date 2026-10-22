@@ -1,7 +1,7 @@
 zfs:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-zfs:v2.0.1-1${SUFFIX}
+  image: ${REGISTRY_DOMAIN}/burmilla/os-zfs:v2.4.4-1${SUFFIX}
   command: ./build.sh
-  privileged: "true"
+  privileged: true
   labels:
     io.rancher.os.scope: "system"
     io.rancher.os.detach: "false"
