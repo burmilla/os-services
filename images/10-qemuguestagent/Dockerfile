@@ -3,7 +3,7 @@ FROM debian:trixie-slim
 
 # qemu-guest-agent version 10.0 (Debian 13)
 RUN apt-get update \
-    && apt-get install --no-install-recommends --no-install-suggests -y qemu-guest-agent \
+    && apt-get install --no-install-recommends --no-install-suggests -y adduser qemu-guest-agent \
     && apt-get clean \
     && rm -rf /var/lib/apt/*
 ADD run /usr/local/bin/
