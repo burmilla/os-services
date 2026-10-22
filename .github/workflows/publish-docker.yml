@@ -21,7 +21,7 @@ jobs:
       if: env.CREATE_PR == 'true'
       uses: peter-evans/create-pull-request@v7
       with:
-        base: v2.0.x
+        base: v3.0.x
         branch: docker-${{ env.DOCKER_VERSION }}
         title: ${{ env.PR_TITLE }}
         body: ${{ env.PR_TITLE }}
