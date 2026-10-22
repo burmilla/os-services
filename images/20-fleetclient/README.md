@@ -79,7 +79,7 @@ rancher:
 server belongs to: fleet-client calls
 `/api/v1/swarms/<FLEET_SWARM>/<FLEET_ENVIRONMENT>/...` on Fleet Manager
 (`/api/v1/...` when neither is set). They must be set together. Needs Fleet
-Manager v1.1.0 or later.
+Manager v1.0.2 or later.
 
 | Variable            | Default            | Description                                    |
 |---------------------|--------------------|------------------------------------------------|
