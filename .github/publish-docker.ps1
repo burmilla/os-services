@@ -61,7 +61,6 @@ $dockerYML += @'
 ${SUFFIX}
   command: ros user-docker
   environment:
-  - DOCKER_MIN_API_VERSION=1.24
   - HTTP_PROXY
   - HTTPS_PROXY
   - NO_PROXY
