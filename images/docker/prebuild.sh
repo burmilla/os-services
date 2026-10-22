@@ -5,6 +5,9 @@ VERSION=$1
 COMPLETION_URL="https://raw.githubusercontent.com/docker/cli/v${VERSION}/contrib/completion/bash/docker"
 DEST="./images/10-docker-${VERSION}${SUFFIX}"
 
+# All 10-docker-* 29.x directories are symlinks to this one, so clean up
+# what the previous version left behind.
+rm -rf $DEST/docker $DEST/engine
 mkdir -p $DEST/docker
 curl -sL -o $DEST/docker/completion ${COMPLETION_URL}
 mv $DEST/docker $DEST/engine
