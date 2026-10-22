@@ -1,6 +1,6 @@
 # Docs: https://github.com/burmilla/os-services/blob/v3.0.x/images/20-fleetclient/README.md
 fleet-client:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-fleetclient:v3.0.0
+  image: ${REGISTRY_DOMAIN}/burmilla/os-fleetclient:v3.0.1
   environment:
   - FLEET_*
   labels:
@@ -15,3 +15,4 @@ fleet-client:
   volumes_from:
   - command-volumes
   - system-volumes
+  - user-volumes

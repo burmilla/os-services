@@ -24,6 +24,17 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
      `ros engine switch` (User Docker), then `ros os upgrade` (reboots) or a
      plain reboot for a scheduled restart. The lock is released by Fleet Manager
      once the server reports the target state and the Swarm is healthy again.
+4. Applies the `ssh` settings right away, in any upgrade policy and without a
+   maintenance lock:
+   * `authorized_keys` go to a block between `# BEGIN burmilla-fleet-manager`
+     and `# END burmilla-fleet-manager` in `~/.ssh/authorized_keys` of the
+     `rancher` and `docker` users. Other keys in the file (from cloud-config
+     `ssh_authorized_keys` or added by hand) are not touched.
+   * `password_authentication` is written to
+     `/etc/ssh/sshd_config.d/50-burmilla-fleet.conf` in the console container
+     (`system-docker exec console`) and sshd is reloaded; open sessions stay.
+     The effective value (`sshd -T`) is reported back. Consoles whose
+     `sshd_config` does not include `sshd_config.d` report an error.
 
 ## Enable
 
