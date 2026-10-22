@@ -10,4 +10,5 @@ for _ in {1..10}; do
     fi
 done
 
-qemu-ga
+# exec so SIGTERM from "ros service stop" / reboot reaches qemu-ga instead of being held by bash
+exec qemu-ga
