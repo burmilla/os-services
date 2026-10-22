@@ -8,8 +8,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -83,6 +86,7 @@ type Report struct {
 
 type client struct {
 	manager    string
+	user, pass string
 	swarm      string
 	env        string
 	hostname   string
@@ -98,7 +102,9 @@ func main() {
 		swarm:    os.Getenv("FLEET_SWARM"),
 		env:      os.Getenv("FLEET_ENVIRONMENT"),
 		hostname: os.Getenv("FLEET_HOSTNAME"),
-		http:     &http.Client{Timeout: 30 * time.Second},
+		user:     os.Getenv("FLEET_USERNAME"),
+		pass:     os.Getenv("FLEET_PASSWORD"),
+		http:     &http.Client{Timeout: 30 * time.Second, Transport: transport(os.Getenv("FLEET_CA_CERT"))},
 		docker:   unixClient(envOr("FLEET_DOCKER_SOCK", "/run/docker.sock")),
 		state:    "idle",
 	}
@@ -448,7 +454,37 @@ func (c *client) post(path string, body any) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.http.Post(c.manager+path, "application/json", bytes.NewReader(data))
+	req, err := http.NewRequest(http.MethodPost, c.manager+path, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if c.user != "" {
+		req.SetBasicAuth(c.user, c.pass)
+	}
+	return c.http.Do(req)
+}
+
+// transport trusts the extra CA in caFile, e.g. for a Fleet Manager with a
+// certificate from a private CA.
+func transport(caFile string) http.RoundTripper {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	if caFile == "" {
+		return t
+	}
+	pem, err := os.ReadFile(caFile)
+	if err != nil {
+		log.Fatalf("read FLEET_CA_CERT: %v", err)
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pem) {
+		log.Fatalf("no certificates in FLEET_CA_CERT %s", caFile)
+	}
+	t.TLSClientConfig = &tls.Config{RootCAs: pool}
+	return t
 }
 
 func (c *client) report(rep *Report) (*Desired, error) {
@@ -458,7 +494,8 @@ func (c *client) report(rep *Report) (*Desired, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fleet manager returned %s", resp.Status)
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		return nil, fmt.Errorf("fleet manager returned %s: %s", resp.Status, strings.TrimSpace(string(msg)))
 	}
 	d := &Desired{}
 	return d, json.NewDecoder(resp.Body).Decode(d)

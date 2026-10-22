@@ -31,6 +31,9 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
 sudo ros config set rancher.environment.FLEET_MANAGER_URL http://fleet-manager.example.com:8080
 sudo ros config set rancher.environment.FLEET_SWARM swarm-a
 sudo ros config set rancher.environment.FLEET_ENVIRONMENT production
+# only when the Swarm + Environment is protected with htpasswd:
+sudo ros config set rancher.environment.FLEET_USERNAME swarm-a-production
+sudo ros config set rancher.environment.FLEET_PASSWORD 'password'
 sudo ros service enable fleet-client
 sudo ros service up fleet-client
 ```
@@ -43,6 +46,8 @@ rancher:
     FLEET_MANAGER_URL: http://fleet-manager.example.com:8080
     FLEET_SWARM: swarm-a
     FLEET_ENVIRONMENT: production
+    FLEET_USERNAME: swarm-a-production   # optional, see above
+    FLEET_PASSWORD: password
   services_include:
     fleet-client: true
 ```
@@ -55,6 +60,9 @@ section of the fleet configuration, which wins over the values above.
 | `FLEET_MANAGER_URL` |                    | Fleet Manager address (required)               |
 | `FLEET_SWARM`       |                    | Swarm this server belongs to                   |
 | `FLEET_ENVIRONMENT` |                    | Environment this server belongs to             |
+| `FLEET_USERNAME`    |                    | User of the Swarm + Environment when it is protected with `htpasswd` in the fleet configuration |
+| `FLEET_PASSWORD`    |                    | Password for `FLEET_USERNAME`                  |
+| `FLEET_CA_CERT`     |                    | Extra CA certificate (PEM) to trust for an HTTPS Fleet Manager |
 | `FLEET_HOSTNAME`    | system hostname    | Identity of the server in the fleet            |
 | `FLEET_INTERVAL`    | from Fleet Manager | Override the check interval (Go duration)      |
 | `FLEET_DOCKER_SOCK` | `/run/docker.sock` | User Docker socket used for the Swarm status   |

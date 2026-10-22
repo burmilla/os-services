@@ -59,6 +59,25 @@ func TestSwarmStatus(t *testing.T) {
 	}
 }
 
+func TestCredentialsSent(t *testing.T) {
+	mgr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if u, p, ok := r.BasicAuth(); !ok || u != "s1-prod" || p != "secret" {
+			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+			return
+		}
+		w.Write([]byte(`{"swarm":"s1"}`))
+	}))
+	defer mgr.Close()
+	c := &client{manager: mgr.URL, hostname: "n1", http: mgr.Client()}
+	if _, err := c.report(&Report{}); err == nil || err.Error() != "fleet manager returned 401 Unauthorized: invalid credentials" {
+		t.Fatalf("expected 401, got %v", err)
+	}
+	c.user, c.pass = "s1-prod", "secret"
+	if d, err := c.report(&Report{}); err != nil || d.Swarm != "s1" {
+		t.Fatalf("report with credentials: %v %+v", err, d)
+	}
+}
+
 func TestActWaits(t *testing.T) {
 	var lockReason string
 	mgr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
