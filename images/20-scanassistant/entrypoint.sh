@@ -7,6 +7,11 @@ set -e
 # directory is bind mounted over /etc/rapid7/ScanAssistant in a private mount
 # namespace, so nothing is left behind in the console when the service stops.
 
+if [ "$(uname -m)" != x86_64 ]; then
+    echo "Rapid7 publishes the Linux Scan Assistant only for amd64" >&2
+    exit 1
+fi
+
 STATE_DIR=/var/lib/rancher/scan-assistant
 CACHE_DIR=${STATE_DIR}-cache
 URL=${SCAN_ASSISTANT_URL:-https://download2.rapid7.com/download/InsightVM/R7ScanAssistant_amd64.deb}

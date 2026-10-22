@@ -8,8 +8,9 @@ TCP port **21047** (TLS) instead of logging in with SSH.
 Rapid7 does not allow redistributing the Scan Assistant, so the image does
 not contain it. On every start the service downloads the latest
 `R7ScanAssistant_amd64.deb` from `download2.rapid7.com`, checks it against
-the published `.sha512sum` and runs `/usr/sbin/ScanAssistant` from it (amd64
-only, Rapid7 publishes no arm64 Linux package). The install scripts of the
+the published `.sha512sum` and runs `/usr/sbin/ScanAssistant` from it.
+Rapid7 publishes the package only for amd64, so do not enable the service on
+arm64. The install scripts of the
 package, which expect systemd or upstart, are not run. The last verified
 package is kept in `/var/lib/rancher/scan-assistant-cache`, so the service
 also starts when Rapid7 cannot be reached, but the first start needs
@@ -40,6 +41,10 @@ mounted over `/etc/rapid7/ScanAssistant` in a private mount namespace, so the
 console filesystem stays unchanged apart from the empty
 `/etc/rapid7/ScanAssistant` directory. When the console container is
 restarted, the service restarts so it follows the new console.
+
+`unshare`, `mount` and `/bin/sh` are taken from the console, so a console
+without util-linux `unshare` (e.g. a custom minimal console) is not
+supported. The default Debian console has them.
 
 The service is privileged and uses the host PID namespace because entering
 the console's namespaces requires it.
