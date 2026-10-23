@@ -75,6 +75,36 @@ rancher:
     fleet-client: true
 ```
 
+## Older BurmillaOS and RancherOS
+
+The client also runs on older BurmillaOS (v1.9, v2.0) and RancherOS 1.x
+installations, so you can get visibility of them before planning upgrades.
+Their service repositories do not have fleet-client, so enable it by URL:
+
+```bash
+# Old RancherOS may not define REGISTRY_DOMAIN, which the service file uses:
+[ -n "$(sudo ros config get rancher.environment.REGISTRY_DOMAIN)" ] || \
+  sudo ros config set rancher.environment.REGISTRY_DOMAIN docker.io
+sudo ros config set rancher.environment.FLEET_MANAGER_URL https://fleet-manager.example.com
+sudo ros config set rancher.environment.FLEET_SWARM swarm-a
+sudo ros config set rancher.environment.FLEET_ENVIRONMENT production
+sudo ros service enable https://raw.githubusercontent.com/burmilla/os-services/v3.0.x/f/fleet-client.yml
+sudo ros service up fleet-client
+```
+
+What works there:
+
+* Reports (versions, kernel, boot time, Swarm status, services, local
+  containers, SSH state) work. With Docker before 20.10, service task counts
+  come from the task list instead of the newer service status API.
+* `authorized_keys` works. `password_authentication` needs a console whose
+  `sshd_config` includes `sshd_config.d`, which older consoles usually do not.
+* `disable_after_boot` needs `ros console sshd`, which older versions do
+  not have; they report an error when it is set.
+* Keep `upgrade_policy: none` (the default) for them until you have tested
+  the upgrade path. `auto` would run `ros os upgrade` to the target image
+  directly.
+
 `FLEET_SWARM` and `FLEET_ENVIRONMENT` decide which Swarm + Environment the
 server belongs to: fleet-client calls
 `/api/v1/swarms/<FLEET_SWARM>/<FLEET_ENVIRONMENT>/...` on Fleet Manager

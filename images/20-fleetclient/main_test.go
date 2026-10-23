@@ -170,3 +170,46 @@ func TestAPIBase(t *testing.T) {
 		}
 	}
 }
+
+// Docker before 20.10 has no ServiceStatus: tasks are counted instead.
+func TestSwarmStatusOldDocker(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "docker.sock")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := &httptest.Server{Listener: l, Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/info":
+			w.Write([]byte(`{"Swarm":{"NodeID":"n1","LocalNodeState":"active","ControlAvailable":true,"Cluster":{"ID":"c1"}}}`))
+		case "/nodes":
+			w.Write([]byte(`[{"Status":{"State":"ready"},"ManagerStatus":{"Reachability":"reachable"}}]`))
+		case "/services":
+			w.Write([]byte(`[
+				{"ID":"s1","Spec":{"Name":"web","Mode":{"Replicated":{"Replicas":3}}}},
+				{"ID":"s2","Spec":{"Name":"agent","Mode":{"Global":{}}}},
+				{"ID":"s3","Spec":{"Name":"db","Mode":{"Replicated":{"Replicas":1}}}}]`))
+		case "/tasks":
+			w.Write([]byte(`[
+				{"ServiceID":"s1","DesiredState":"running","Status":{"State":"running"}},
+				{"ServiceID":"s1","DesiredState":"running","Status":{"State":"running"}},
+				{"ServiceID":"s1","DesiredState":"shutdown","Status":{"State":"failed"}},
+				{"ServiceID":"s1","DesiredState":"running","Status":{"State":"starting"}},
+				{"ServiceID":"s2","DesiredState":"running","Status":{"State":"running"}},
+				{"ServiceID":"s3","DesiredState":"running","Status":{"State":"running"}}]`))
+		}
+	})}}
+	srv.Start()
+	defer srv.Close()
+
+	st, err := (&client{docker: unixClient(sock)}).swarmStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Services != 3 || st.ServicesReady != 2 || len(st.ServicesNotReady) != 1 {
+		t.Fatalf("unexpected services: %+v", *st)
+	}
+	if got := st.ServicesNotReady[0]; got != (ServiceState{Name: "web", Mode: "replicated", DesiredTasks: 3, RunningTasks: 2}) {
+		t.Fatalf("web: %+v", got)
+	}
+}

@@ -145,6 +145,12 @@ func (c *client) applySSHConfig(d SSH, st *SSH) (*SSH, error) {
 	}
 	out, err := c.console("sh", "-c", sshdScript, "sh", mode)
 	if err != nil {
+		if mode == "" {
+			// Only reading the state: not an error of the server, e.g. an
+			// older console where sshd -T does not work.
+			log.Printf("cannot read sshd settings: %v", err)
+			return st, nil
+		}
 		return st, fmt.Errorf("sshd: %v", err)
 	}
 	if f := strings.Fields(out); len(f) == 2 {
