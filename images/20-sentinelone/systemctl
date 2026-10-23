@@ -1,0 +1,135 @@
+#!/bin/sh
+# Minimal systemctl for the SentinelOne package scripts and sentinelctl.
+# There is no systemd in the container, so a unit is started by running its
+# ExecStartPre/ExecStart lines directly and tracked by PID.
+
+STATE=/tmp/systemctl
+mkdir -p ${STATE}
+
+VERB=
+UNITS=
+for arg in "$@"; do
+    case "${arg}" in
+    -*) ;;
+    *)
+        if [ -z "${VERB}" ]; then
+            VERB=${arg}
+        else
+            UNITS="${UNITS} ${arg%.service}"
+        fi
+        ;;
+    esac
+done
+
+# /var/lib/rancher/sentinelone keeps a copy of the unit for a recreated
+# container, whose /lib/systemd no longer has the files of the package
+unit_file() {
+    for d in /etc/systemd/system /usr/lib/systemd/system /lib/systemd/system /var/lib/rancher/sentinelone; do
+        if [ -f "${d}/$1.service" ]; then
+            echo "${d}/$1.service"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# Prints the values of a key, without the systemd prefixes (-@+!:)
+unit_values() {
+    sed -n "s/^$2=[-@+!:]*//p" "$1"
+}
+
+unit_pid() {
+    pidfile=$(unit_values "$1" PIDFile | tail -1)
+    if [ -n "${pidfile}" ] && [ -f "${pidfile}" ]; then
+        cat "${pidfile}"
+    elif [ -f "${STATE}/$2.pid" ]; then
+        cat "${STATE}/$2.pid"
+    fi
+}
+
+is_active() {
+    file=$(unit_file "$1") || return 3
+    pid=$(unit_pid "${file}" "$1")
+    [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null || return 3
+}
+
+run_lines() {
+    unit_values "$1" "$2" | while read -r cmd; do
+        sh -c "${cmd}" || true
+    done
+}
+
+start() {
+    file=$(unit_file "$1") || { echo "Unit $1.service not found." >&2; return 5; }
+    is_active "$1" && return 0
+    (
+        unit_values "${file}" EnvironmentFile | while read -r envfile; do
+            [ -f "${envfile}" ] && echo "${envfile}"
+        done > ${STATE}/$1.envfiles
+        set -a
+        while read -r envfile; do
+            . "${envfile}"
+        done < ${STATE}/$1.envfiles
+        set +a
+        unit_values "${file}" Environment > ${STATE}/$1.env
+        while read -r env; do
+            eval "export ${env}"
+        done < ${STATE}/$1.env
+        run_lines "${file}" ExecStartPre
+        cmd=$(unit_values "${file}" ExecStart | tail -1)
+        setsid sh -c "exec ${cmd}" </dev/null >>/var/log/$1.log 2>&1 &
+        echo $! > ${STATE}/$1.pid
+        wait_pid=$!
+        # Type=forking: wait for the parent to exit so PIDFile is written
+        if grep -q '^Type=forking' "${file}"; then
+            wait ${wait_pid} || true
+        fi
+        run_lines "${file}" ExecStartPost
+    )
+}
+
+stop() {
+    file=$(unit_file "$1") || return 0
+    if grep -q '^ExecStop=' "${file}"; then
+        run_lines "${file}" ExecStop
+    fi
+    pid=$(unit_pid "${file}" "$1")
+    if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+        kill -TERM "${pid}" 2>/dev/null || true
+        i=0
+        while kill -0 "${pid}" 2>/dev/null && [ $i -lt 30 ]; do
+            sleep 1
+            i=$((i + 1))
+        done
+        kill -KILL "${pid}" 2>/dev/null || true
+    fi
+    rm -f ${STATE}/$1.pid
+}
+
+rc=0
+case "${VERB}" in
+start)
+    for u in ${UNITS}; do start "$u" || rc=$?; done
+    ;;
+stop)
+    for u in ${UNITS}; do stop "$u"; done
+    ;;
+restart|try-restart|reload-or-restart|condrestart)
+    for u in ${UNITS}; do stop "$u"; start "$u" || rc=$?; done
+    ;;
+is-active|status)
+    for u in ${UNITS}; do
+        if is_active "$u"; then echo active; else echo inactive; rc=3; fi
+    done
+    ;;
+is-enabled)
+    for u in ${UNITS}; do echo enabled; done
+    ;;
+is-system-running)
+    echo running
+    ;;
+*)
+    # daemon-reload, enable, disable, mask, preset, ... have nothing to do
+    ;;
+esac
+exit ${rc}
