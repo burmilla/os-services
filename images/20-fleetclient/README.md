@@ -1,11 +1,11 @@
 # Fleet client
 
 Optional system service which connects a BurmillaOS server to
-[Fleet Manager](https://github.com/burmilla/os-fleet-manager).
+[BurFleet](https://github.com/burmilla/os-fleet-manager).
 
-On every check interval (from Fleet Manager, 5 minutes by default) it:
+On every check interval (from BurFleet, 5 minutes by default) it:
 
-1. Reports the server state to Fleet Manager: hostname, Swarm, Environment,
+1. Reports the server state to BurFleet: hostname, Swarm, Environment,
    BurmillaOS version (`ros os version`), User Docker engine (`ros engine list`),
    kernel, boot time and the Docker Swarm status of the node (from the User
    Docker API). Managers also send node and manager counts and the state of
@@ -20,14 +20,14 @@ On every check interval (from Fleet Manager, 5 minutes by default) it:
 3. Depending on `upgrade_policy`:
    * `none` – only reports.
    * `download` – pre-pulls the target BurmillaOS image.
-   * `auto` – inside the maintenance window, asks Fleet Manager for a
+   * `auto` – inside the maintenance window, asks BurFleet for a
      **maintenance lock**. The lock is only granted when the whole Swarm is
      healthy (all nodes ready, all services running their desired tasks
      with their target configuration and all local containers with a
      restart policy ready) and the Swarm + Environment has a free
      slot. With the lock it runs
      `ros engine switch` (User Docker), then `ros os upgrade` (reboots) or a
-     plain reboot for a scheduled restart. The lock is released by Fleet Manager
+     plain reboot for a scheduled restart. The lock is released by BurFleet
      once the server reports the target state and the Swarm is healthy again.
 4. Applies the `ssh` settings right away, in any upgrade policy and without a
    maintenance lock:
@@ -107,24 +107,24 @@ What works there:
 
 `FLEET_SWARM` and `FLEET_ENVIRONMENT` decide which Swarm + Environment the
 server belongs to: fleet-client calls
-`/api/v1/swarms/<FLEET_SWARM>/<FLEET_ENVIRONMENT>/...` on Fleet Manager
+`/api/v1/swarms/<FLEET_SWARM>/<FLEET_ENVIRONMENT>/...` on BurFleet
 (`/api/v1/...` when neither is set). They must be set together. Needs Fleet
 Manager v1.0.2 or later.
 
 | Variable            | Default            | Description                                    |
 |---------------------|--------------------|------------------------------------------------|
-| `FLEET_MANAGER_URL` |                    | Fleet Manager address (required)               |
+| `FLEET_MANAGER_URL` |                    | BurFleet address (required)               |
 | `FLEET_SWARM`       |                    | Swarm (or standalone group) this server belongs to |
 | `FLEET_ENVIRONMENT` |                    | Environment this server belongs to             |
 | `FLEET_USERNAME`    |                    | User of the Swarm + Environment when it is protected with `htpasswd` in the fleet configuration |
 | `FLEET_PASSWORD`    |                    | Password for `FLEET_USERNAME`                  |
-| `FLEET_CA_CERT`     |                    | Extra CA certificate (PEM) to trust for an HTTPS Fleet Manager |
+| `FLEET_CA_CERT`     |                    | Extra CA certificate (PEM) to trust for an HTTPS BurFleet |
 | `FLEET_HOSTNAME`    | system hostname    | Identity of the server in the fleet            |
-| `FLEET_INTERVAL`    | from Fleet Manager | Override the check interval (Go duration)      |
+| `FLEET_INTERVAL`    | from BurFleet | Override the check interval (Go duration)      |
 | `FLEET_DOCKER_SOCK` | `/run/docker.sock` | User Docker socket used for the Swarm status   |
 
 Logs: `sudo system-docker logs fleet-client`.
 
-Run fleet-client on **all** Swarm members, managers included: Fleet Manager
+Run fleet-client on **all** Swarm members, managers included: BurFleet
 treats a Swarm without manager reports, or with a member that stopped
 reporting, as unhealthy and does not hand out maintenance locks for it.

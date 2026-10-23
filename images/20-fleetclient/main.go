@@ -1,4 +1,4 @@
-// fleet-client reports the state of a BurmillaOS server to Fleet Manager
+// fleet-client reports the state of a BurmillaOS server to BurFleet
 // and applies the target OS / User Docker versions and scheduled restarts
 // it gets back, inside the server's maintenance window and only while it
 // holds a maintenance lock.
@@ -32,7 +32,7 @@ const (
 	systemDocker = "/usr/bin/system-docker"
 )
 
-// Desired is the response of the Fleet Manager config and report APIs.
+// Desired is the response of the BurFleet config and report APIs.
 type Desired struct {
 	Swarm                   string   `json:"swarm"`
 	Environment             string   `json:"environment"`
@@ -544,7 +544,7 @@ func updateInProgress(state string) bool {
 	return false
 }
 
-// apiBase returns the Fleet Manager API path of a server. The Swarm and
+// apiBase returns the BurFleet API path of a server. The Swarm and
 // Environment in the path are what make the server a member of them.
 func apiBase(swarm, env string) (string, error) {
 	switch {
@@ -572,7 +572,7 @@ func (c *client) post(path string, body any) (*http.Response, error) {
 	return c.http.Do(req)
 }
 
-// transport trusts the extra CA in caFile, e.g. for a Fleet Manager with a
+// transport trusts the extra CA in caFile, e.g. for a BurFleet with a
 // certificate from a private CA.
 func transport(caFile string) http.RoundTripper {
 	t := http.DefaultTransport.(*http.Transport).Clone()
