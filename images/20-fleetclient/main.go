@@ -443,10 +443,11 @@ func (c *client) swarmStatus() (*SwarmStatus, error) {
 // running only once it is healthy, so running means healthy here.
 func (c *client) serviceStatus(st *SwarmStatus) error {
 	var services []struct {
+		ID   string
 		Spec struct {
 			Name string
 			Mode struct {
-				Replicated    *struct{}
+				Replicated    *struct{ Replicas *int }
 				Global        *struct{}
 				ReplicatedJob *struct{}
 				GlobalJob     *struct{}
@@ -461,6 +462,17 @@ func (c *client) serviceStatus(st *SwarmStatus) error {
 	if err := c.dockerGet("/services?status=true", &services); err != nil {
 		return err
 	}
+	// Docker before 20.10 (API 1.41) ignores status=true: count the tasks.
+	var tasks map[string]taskCount
+	for _, svc := range services {
+		if svc.ServiceStatus == nil {
+			var err error
+			if tasks, err = c.taskCounts(); err != nil {
+				return err
+			}
+			break
+		}
+	}
 	st.ServicesNotReady = []ServiceState{}
 	for _, svc := range services {
 		mode := "replicated"
@@ -473,6 +485,12 @@ func (c *client) serviceStatus(st *SwarmStatus) error {
 		s := ServiceState{Name: svc.Spec.Name, Mode: mode}
 		if svc.ServiceStatus != nil {
 			s.DesiredTasks, s.RunningTasks = svc.ServiceStatus.DesiredTasks, svc.ServiceStatus.RunningTasks
+		} else {
+			n := tasks[svc.ID]
+			s.DesiredTasks, s.RunningTasks = n.desired, n.running
+			if r := svc.Spec.Mode.Replicated; r != nil && r.Replicas != nil {
+				s.DesiredTasks = *r.Replicas
+			}
 		}
 		if svc.UpdateStatus != nil {
 			s.UpdateState = svc.UpdateStatus.State
@@ -485,6 +503,34 @@ func (c *client) serviceStatus(st *SwarmStatus) error {
 		}
 	}
 	return nil
+}
+
+type taskCount struct{ desired, running int }
+
+// taskCounts counts per service the tasks which should run and the ones
+// which do, like ServiceStatus of newer Docker versions.
+func (c *client) taskCounts() (map[string]taskCount, error) {
+	var tasks []struct {
+		ServiceID    string
+		DesiredState string
+		Status       struct{ State string }
+	}
+	if err := c.dockerGet("/tasks", &tasks); err != nil {
+		return nil, err
+	}
+	out := map[string]taskCount{}
+	for _, t := range tasks {
+		if t.DesiredState != "running" {
+			continue
+		}
+		n := out[t.ServiceID]
+		n.desired++
+		if t.Status.State == "running" {
+			n.running++
+		}
+		out[t.ServiceID] = n
+	}
+	return out, nil
 }
 
 // updateInProgress reports whether a service update has not reached its
