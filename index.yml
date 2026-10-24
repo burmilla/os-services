@@ -4,6 +4,7 @@ services:
 - fleet-client
 - otel-collector
 - zfs
+- keepalived
 - kernel-extras
 - kernel-headers
 - kernel-headers-system-docker
