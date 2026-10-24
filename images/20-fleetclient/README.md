@@ -47,6 +47,15 @@ On every check interval (from BurFleet, 5 minutes by default) it:
      reboot; `0` enables it right away (`ros console sshd enable`), unset
      leaves it as it is. Needs a BurmillaOS version which has
      `ros console sshd`; older versions report an error.
+5. Applies `console_access` right away as well: `false` runs
+   `ros console access disable`, which stops sshd and the tty logins of the
+   console and keeps them off across reboots (`rancher.console_access`),
+   `true` runs `ros console access enable`. The console container keeps
+   running (User Docker, iSCSI and NFS volumes keep working), only the
+   logins are gone. While access is disabled the `ssh` settings are still
+   written for when it is enabled again, but `disable_after_boot` does not
+   apply. The state is reported back. Needs a BurmillaOS version which has
+   `ros console access`; older versions report an error when it is set.
 
 ## Enable
 
@@ -101,6 +110,8 @@ What works there:
   `sshd_config` includes `sshd_config.d`, which older consoles usually do not.
 * `disable_after_boot` needs `ros console sshd`, which older versions do
   not have; they report an error when it is set.
+* `console_access` needs `ros console access`, which older versions do not
+  have; they report an error when it is set.
 * Keep `upgrade_policy: none` (the default) for them until you have tested
   the upgrade path. `auto` would run `ros os upgrade` to the target image
   directly.
