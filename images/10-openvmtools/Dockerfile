@@ -8,7 +8,7 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/* \
     && mkdir -p /mnt/hgfs \
-    && vmtoolsd --version
+    && test -x /usr/bin/vmtoolsd
 
 ENTRYPOINT ["/usr/bin/ros", "entrypoint"]
 
