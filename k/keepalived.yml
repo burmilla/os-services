@@ -1,0 +1,14 @@
+# Docs: https://github.com/burmilla/os-services/blob/v3.0.x/images/20-keepalived/README.md
+keepalived:
+  image: ${REGISTRY_DOMAIN}/burmilla/os-keepalived:v2.3.3-1
+  environment:
+  - KEEPALIVED_*
+  labels:
+    io.rancher.os.scope: system
+    io.rancher.os.after: network
+  privileged: true
+  restart: always
+  net: host
+  uts: host
+  volumes_from:
+  - system-volumes
