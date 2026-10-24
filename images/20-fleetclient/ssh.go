@@ -114,10 +114,59 @@ func sshdStatus() string {
 	return ""
 }
 
+// consoleAccessStatus returns whether sshd and the tty logins of the
+// console are enabled (ros console access status), nil when this
+// BurmillaOS version does not support it.
+func consoleAccessStatus() *bool {
+	out, err := capture(rosBin, "console", "access", "status")
+	if err != nil {
+		return nil
+	}
+	switch out {
+	case "enabled", "disabled":
+		enabled := out == "enabled"
+		return &enabled
+	}
+	return nil
+}
+
+// applyConsoleAccess enables or disables sshd and the tty logins of the
+// console. nil is not managed. It returns the state after applying, nil
+// when the BurmillaOS version cannot report it.
+func applyConsoleAccess(want *bool) (*bool, error) {
+	status := consoleAccessStatus()
+	if want == nil || (status != nil && *status == *want) {
+		return status, nil
+	}
+	if status == nil {
+		return nil, fmt.Errorf("this BurmillaOS version cannot manage console access (ros console access)")
+	}
+	action := "disable"
+	if *want {
+		action = "enable"
+	}
+	if _, err := capture(rosBin, "console", "access", action); err != nil {
+		return status, fmt.Errorf("%s console access: %v", action, err)
+	}
+	log.Printf("console access %sd", action)
+	status = consoleAccessStatus()
+	if status == nil || *status != *want {
+		return status, fmt.Errorf("console access not %sd", action)
+	}
+	return status, nil
+}
+
 // applySSH applies the desired SSH settings and returns the resulting
-// state for the report.
-func (c *client) applySSH(d SSH, boot time.Time) (*SSH, time.Duration, error) {
+// state for the report. With console access disabled sshd is off and
+// disable_after_boot does not apply; the sshd configuration and the
+// authorized keys are still managed for when access is enabled again.
+func (c *client) applySSH(d SSH, boot time.Time, consoleAccess *bool) (*SSH, time.Duration, error) {
 	st := &SSH{}
+	if consoleAccess != nil && !*consoleAccess {
+		st.Disabled = true
+		st2, err := c.applySSHConfig(d, st)
+		return st2, 0, err
+	}
 	disabled, recheck, gateErr := c.sshGate(d.DisableAfterBoot, boot, time.Now())
 	st.Disabled = disabled
 	st2, err := c.applySSHConfig(d, st)

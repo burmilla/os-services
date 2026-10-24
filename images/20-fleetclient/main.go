@@ -46,6 +46,9 @@ type Desired struct {
 	MaintenanceRequired     bool     `json:"maintenance_required"`
 	MaintenanceReasons      []string `json:"maintenance_reasons"`
 	SSH                     SSH      `json:"ssh"`
+	// ConsoleAccess enables or disables sshd and the tty logins of the
+	// console (ros console access). nil is not managed.
+	ConsoleAccess *bool `json:"console_access"`
 }
 
 type SwarmStatus struct {
@@ -87,6 +90,9 @@ type Report struct {
 	SwarmStatus   *SwarmStatus     `json:"swarm_status,omitempty"`
 	Containers    *ContainerStatus `json:"containers,omitempty"`
 	SSH           *SSH             `json:"ssh,omitempty"`
+	// ConsoleAccess is omitted when this BurmillaOS version does not have
+	// ros console access.
+	ConsoleAccess *bool `json:"console_access,omitempty"`
 }
 
 type client struct {
@@ -176,9 +182,15 @@ func (c *client) run() time.Duration {
 		interval = 5 * time.Minute
 	}
 
-	// SSH settings do not interrupt workloads, so they are applied right
-	// away and before a possible reboot.
-	ssh, recheck, sshErr := c.applySSH(d.SSH, rep.BootTime)
+	// Console access and SSH settings do not interrupt workloads, so they
+	// are applied right away and before a possible reboot.
+	access, accessErr := applyConsoleAccess(d.ConsoleAccess)
+	accessChanged := !reflect.DeepEqual(access, rep.ConsoleAccess)
+	rep.ConsoleAccess = access
+	ssh, recheck, sshErr := c.applySSH(d.SSH, rep.BootTime, access)
+	if sshErr == nil {
+		sshErr = accessErr
+	}
 	if recheck > 0 && recheck < interval {
 		interval = recheck
 	}
@@ -189,7 +201,7 @@ func (c *client) run() time.Duration {
 	if sshErr != nil && state == "idle" {
 		state, msg = "error", "ssh: "+sshErr.Error()
 	}
-	if state != c.state || msg != c.msg || sshChanged {
+	if state != c.state || msg != c.msg || sshChanged || accessChanged {
 		if msg != "" {
 			log.Printf("%s: %s", state, msg)
 		}
@@ -330,6 +342,7 @@ func (c *client) collect() *Report {
 		State:         c.state,
 		Message:       c.msg,
 		SSH:           c.ssh,
+		ConsoleAccess: consoleAccessStatus(),
 	}
 	st, err := c.swarmStatus()
 	if err != nil {
