@@ -40,13 +40,6 @@ On every check interval (from BurFleet, 5 minutes by default) it:
      (`system-docker exec console`) and sshd is reloaded; open sessions stay.
      The effective value (`sshd -T`) is reported back. Consoles whose
      `sshd_config` does not include `sshd_config.d` report an error.
-   * `disable_after_boot` (e.g. `10m`): once the server has been up that
-     long and no SSH connection is established, sshd of the console is
-     stopped with `ros console sshd disable --if-idle`. While a session is
-     open it checks again every minute. sshd starts again after every
-     reboot; `0` enables it right away (`ros console sshd enable`), unset
-     leaves it as it is. Needs a BurmillaOS version which has
-     `ros console sshd`; older versions report an error.
 
 ## Enable
 
@@ -99,8 +92,6 @@ What works there:
   come from the task list instead of the newer service status API.
 * `authorized_keys` works. `password_authentication` needs a console whose
   `sshd_config` includes `sshd_config.d`, which older consoles usually do not.
-* `disable_after_boot` needs `ros console sshd`, which older versions do
-  not have; they report an error when it is set.
 * Keep `upgrade_policy: none` (the default) for them until you have tested
   the upgrade path. `auto` would run `ros os upgrade` to the target image
   directly.
