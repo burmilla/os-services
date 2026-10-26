@@ -3,6 +3,7 @@ services:
 - container-cron
 - fleet-client
 - otel-collector
+- rapid7-scan-assistant
 - zfs
 - kernel-extras
 - kernel-headers
