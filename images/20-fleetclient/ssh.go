@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 	"syscall"
-	"time"
 )
 
 // SSH is the SSH part of the desired state and of the report. A nil field
@@ -16,11 +15,6 @@ import (
 type SSH struct {
 	AuthorizedKeys         []string `json:"authorized_keys"`
 	PasswordAuthentication *bool    `json:"password_authentication"`
-	// DisableAfterBoot (Go duration) stops sshd once the server has been
-	// up this long and no SSH session is active. "0s" enables it again.
-	DisableAfterBoot string `json:"disable_after_boot,omitempty"`
-	// Disabled is reported back: sshd is disabled.
-	Disabled bool `json:"disabled,omitempty"`
 }
 
 const (
@@ -55,79 +49,10 @@ fi
 sshd -T 2>/dev/null | grep -i '^passwordauthentication '
 `
 
-// sshGate stops or starts sshd of the console for disable_after_boot
-// (ros console sshd, BurmillaOS with sshd disable support). Unset is not
-// managed, 0 enables sshd. It returns whether sshd is disabled and, while
-// it waits for the deadline or for open sessions to end, how soon to
-// check again.
-func (c *client) sshGate(after string, boot, now time.Time) (bool, time.Duration, error) {
-	status := sshdStatus()
-	if after == "" {
-		return status == "disabled", 0, nil
-	}
-	d, _ := time.ParseDuration(after)
-	if d == 0 {
-		if status == "disabled" {
-			if _, err := capture(rosBin, "console", "sshd", "enable"); err != nil {
-				return true, 0, fmt.Errorf("enable sshd: %v", err)
-			}
-			log.Print("sshd enabled")
-		}
-		return false, 0, nil
-	}
-	if boot.IsZero() {
-		return status == "disabled", 0, nil
-	}
-	if left := boot.Add(d).Sub(now); left > 0 {
-		return status == "disabled", max(left, 10*time.Second), nil
-	}
-	switch status {
-	case "disabled":
-		return true, 0, nil
-	case "enabled":
-	default:
-		return false, 0, fmt.Errorf("this BurmillaOS version cannot disable sshd (ros console sshd)")
-	}
-	out, err := capture(rosBin, "console", "sshd", "disable", "--if-idle")
-	if err != nil {
-		return false, 0, fmt.Errorf("disable sshd: %v", err)
-	}
-	if sshdStatus() != "disabled" {
-		// An SSH session is open, try again when it may have ended.
-		log.Printf("sshd: %s", out)
-		return false, time.Minute, nil
-	}
-	log.Printf("sshd disabled %s after boot", d)
-	return true, 0, nil
-}
-
-// sshdStatus returns enabled, disabled or "" when not supported.
-func sshdStatus() string {
-	out, err := capture(rosBin, "console", "sshd", "status")
-	if err != nil {
-		return ""
-	}
-	switch out {
-	case "enabled", "disabled":
-		return out
-	}
-	return ""
-}
-
 // applySSH applies the desired SSH settings and returns the resulting
 // state for the report.
-func (c *client) applySSH(d SSH, boot time.Time) (*SSH, time.Duration, error) {
+func (c *client) applySSH(d SSH) (*SSH, error) {
 	st := &SSH{}
-	disabled, recheck, gateErr := c.sshGate(d.DisableAfterBoot, boot, time.Now())
-	st.Disabled = disabled
-	st2, err := c.applySSHConfig(d, st)
-	if err == nil {
-		err = gateErr
-	}
-	return st2, recheck, err
-}
-
-func (c *client) applySSHConfig(d SSH, st *SSH) (*SSH, error) {
 	if d.AuthorizedKeys != nil {
 		keys, err := c.applyKeys(d.AuthorizedKeys)
 		if err != nil {
