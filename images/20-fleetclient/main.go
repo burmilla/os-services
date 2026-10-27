@@ -175,6 +175,12 @@ func (c *client) run() time.Duration {
 	if interval <= 0 {
 		interval = 5 * time.Minute
 	}
+	// User Docker is not up yet, e.g. right after boot or when the client
+	// is started while Docker is (re)starting. Retry sooner than the full
+	// interval so the manager gets the Swarm and container status.
+	if rep.SwarmStatus == nil && rep.Containers == nil && interval > time.Minute {
+		interval = time.Minute
+	}
 
 	// SSH settings do not interrupt workloads, so they are applied right
 	// away and before a possible reboot.
