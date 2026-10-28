@@ -164,6 +164,11 @@ exporters:
       insecure: ${env:OTELCOL_TLS_INSECURE}
 
 service:
+  telemetry:
+    logs:
+      # Collector's own log level (system-docker logs otel-collector).
+      # Default is warn so that info messages are not shown locally.
+      level: ${env:OTELCOL_LOG_LEVEL}
   extensions: [file_storage, docker_observer/docker, docker_observer/system-docker]
   pipelines:
     traces/localhost:
