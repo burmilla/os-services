@@ -104,6 +104,17 @@ func TestActWaits(t *testing.T) {
 	if state, _ := c.act(d, &Report{}); state != "waiting" {
 		t.Fatal("policy none must not act")
 	}
+	// Restarts can be allowed without upgrades; pending upgrades are left
+	// alone.
+	d.RestartAllowed, d.MaintenanceReasons, lockReason = true, []string{"os_upgrade", "restart"}, ""
+	state, msg = c.act(d, &Report{})
+	if state != "waiting" || lockReason != "restart" || msg != "pending restart, maintenance lock refused: 1 nodes of Swarm s1 are not ready" {
+		t.Fatalf("restart with policy none: %s %s (lock %q)", state, msg, lockReason)
+	}
+	d.MaintenanceReasons, lockReason = []string{"os_upgrade"}, ""
+	if state, _ := c.act(d, &Report{}); state != "waiting" || lockReason != "" {
+		t.Fatal("policy none must not upgrade even when restarts are allowed")
+	}
 	if state, _ := c.act(&Desired{}, &Report{}); state != "idle" {
 		t.Fatal("nothing to do should be idle")
 	}

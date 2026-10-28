@@ -29,6 +29,11 @@ On every check interval (from BurFleet, 5 minutes by default) it:
      `ros engine switch` (User Docker), then `ros os upgrade` (reboots) or a
      plain reboot for a scheduled restart. The lock is released by BurFleet
      once the server reports the target state and the Swarm is healthy again.
+
+   With `none` and `download`, scheduled restarts still run when BurFleet
+   allows them (`maintenance_window` and `max_uptime` configured, BurFleet
+   v1.5.0 or later): the client takes the maintenance lock in the window
+   and reboots, but leaves upgrades pending.
 4. Applies the `ssh` settings right away, in any upgrade policy and without a
    maintenance lock:
    * `authorized_keys` go to a block between `# BEGIN burmilla-fleet-manager`
