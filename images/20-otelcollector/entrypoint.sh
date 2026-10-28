@@ -11,6 +11,7 @@ if [ "${OTELCOL_DEFAULT_CONFIG:-true}" != "false" ]; then
         exit 1
     fi
     export OTELCOL_TLS_INSECURE=${OTELCOL_TLS_INSECURE:-true}
+    export OTELCOL_LOG_LEVEL=${OTELCOL_LOG_LEVEL:-warn}
     set -- --config "${DEFAULT_CONFIG}"
 fi
 

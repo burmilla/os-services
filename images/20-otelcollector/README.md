@@ -42,10 +42,13 @@ rancher:
 |--------------------------|-------------------------------------------|-------------|
 | `OTELCOL_ENDPOINT`       |                                           | OTLP/gRPC endpoint (`host:port`) where everything is exported. Required with the default config |
 | `OTELCOL_TLS_INSECURE`   | `true`                                    | `false` to use TLS towards `OTELCOL_ENDPOINT` |
+| `OTELCOL_LOG_LEVEL`      | `warn`                                    | Log level of the collector itself (`debug`, `info`, `warn`, `error`). Used with the default config |
 | `OTELCOL_CONFIG`         | `/var/lib/rancher/conf/otel-collector.yaml` | Additional config file, used when it exists |
 | `OTELCOL_DEFAULT_CONFIG` | `true`                                    | `false` to skip the default config and use only `OTELCOL_CONFIG` |
 
-Logs: `sudo system-docker logs otel-collector`.
+Logs: `sudo system-docker logs otel-collector`. Only warnings and errors are
+logged by default; set `OTELCOL_LOG_LEVEL` to `info` or `debug` for
+troubleshooting.
 
 ## Additional configuration
 
