@@ -45,6 +45,7 @@ type Desired struct {
 	MaintenanceWindowNext   string   `json:"maintenance_window_next_start"`
 	MaintenanceRequired     bool     `json:"maintenance_required"`
 	MaintenanceReasons      []string `json:"maintenance_reasons"`
+	RestartAllowed          bool     `json:"restart_allowed"`
 	SSH                     SSH      `json:"ssh"`
 }
 
@@ -210,25 +211,35 @@ func (c *client) act(d *Desired, rep *Report) (string, string) {
 	if !d.MaintenanceRequired {
 		return "idle", ""
 	}
-	pending := strings.Join(d.MaintenanceReasons, ", ")
+	reasons := d.MaintenanceReasons
+	pending := strings.Join(reasons, ", ")
 	switch d.UpgradePolicy {
+	case "auto":
 	case "download":
-		if contains(d.MaintenanceReasons, "os_upgrade") {
+		if contains(reasons, "os_upgrade") {
 			image := d.OSImage + ":" + d.OSVersion
 			if err := run(systemDocker, "pull", image); err != nil {
 				return "error", fmt.Sprintf("pull %s: %v", image, err)
 			}
 		}
-		return "waiting", "pending " + pending + " (upgrade_policy download, images pulled)"
-	case "auto":
+		fallthrough
 	default:
-		return "waiting", "pending " + pending + " (upgrade_policy " + d.UpgradePolicy + ")"
+		// Scheduled restarts can be allowed without upgrades
+		// (maintenance_window and max_uptime are configured).
+		if !d.RestartAllowed || !contains(reasons, "restart") {
+			if d.UpgradePolicy == "download" {
+				return "waiting", "pending " + pending + " (upgrade_policy download, images pulled)"
+			}
+			return "waiting", "pending " + pending + " (upgrade_policy " + d.UpgradePolicy + ")"
+		}
+		reasons = []string{"restart"}
+		pending = "restart"
 	}
 
 	if !d.MaintenanceWindowActive {
 		return "waiting", "pending " + pending + ", next maintenance window " + d.MaintenanceWindowNext
 	}
-	granted, why, err := c.lock(d.MaintenanceReasons[0])
+	granted, why, err := c.lock(reasons[0])
 	if err != nil {
 		return c.state, ""
 	}
@@ -242,12 +253,12 @@ func (c *client) act(d *Desired, rep *Report) (string, string) {
 	}
 	log.Printf("maintenance lock granted, starting %s", pending)
 
-	if contains(d.MaintenanceReasons, "docker_upgrade") {
+	if contains(reasons, "docker_upgrade") {
 		if err := run(rosBin, "engine", "switch", "-f", d.DockerVersion); err != nil {
 			return "error", fmt.Sprintf("switch User Docker to %s: %v", d.DockerVersion, err)
 		}
 	}
-	if contains(d.MaintenanceReasons, "os_upgrade") {
+	if contains(reasons, "os_upgrade") {
 		image := d.OSImage + ":" + d.OSVersion
 		// Reboots the server when done.
 		if err := run(rosBin, "os", "upgrade", "-f", "-i", image); err != nil {
@@ -255,7 +266,7 @@ func (c *client) act(d *Desired, rep *Report) (string, string) {
 		}
 		return "upgrading", "rebooting to " + image
 	}
-	if contains(d.MaintenanceReasons, "restart") {
+	if contains(reasons, "restart") {
 		log.Print("scheduled restart")
 		// ros acts as reboot when called with that name.
 		cmd := &exec.Cmd{Path: rosBin, Args: []string{"reboot"}, Stdout: os.Stdout, Stderr: os.Stderr}
