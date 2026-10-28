@@ -1,6 +1,6 @@
 # Docs: https://github.com/burmilla/os-services/blob/v3.0.x/images/20-otelcollector/README.md
 otel-collector:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-otelcollector:v0.163.2-1
+  image: ${REGISTRY_DOMAIN}/burmilla/os-otelcollector:v0.163.2-2
   environment:
   - OTELCOL_*
   labels:
@@ -16,5 +16,4 @@ otel-collector:
   volumes:
   - /:/hostfs:ro
   - /var/lib/docker/containers:/var/lib/docker/containers:ro
-  - /var/lib/system-docker/containers:/var/lib/system-docker/containers:ro
   - /var/lib/rancher/otel-collector:/var/lib/otelcol
