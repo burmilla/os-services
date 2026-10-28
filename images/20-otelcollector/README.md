@@ -7,9 +7,9 @@ on a BurmillaOS server and exports its metrics and logs with OTLP/gRPC.
 The [default configuration](config.yaml) collects:
 
 * **Metrics** – host metrics (CPU, memory, disk, filesystem, network, load,
-  processes), User Docker container stats (`docker_stats`, Swarm service and
-  task names as `job_name` and `task_name` labels) and the collector's own
-  metrics.
+  processes), User Docker container stats (`docker_stats`, Swarm service,
+  task and stack names as `job_name`, `task_name` and `namespace_name`
+  labels) and the collector's own metrics.
 * **Logs** – system logs from `/var/log/syslog` and the logs of every User
   Docker container. BurmillaOS does not run journald, so container logs are
   read from the `json-file` log files instead, with `container.name`,
