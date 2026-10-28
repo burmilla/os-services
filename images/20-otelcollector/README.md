@@ -11,12 +11,12 @@ The [default configuration](config.yaml) collects:
   task names as `job_name` and `task_name` labels) and the collector's own
   metrics.
 * **Logs** – system logs from `/var/log/syslog` and the logs of every User
-  Docker and System Docker container. BurmillaOS does not run journald, so
-  container logs are read from the `json-file` log files instead, with
-  `container.name`, `container.id`, `container.image.name` and
-  `docker.engine` (`user` / `system`) resource attributes. `service.name` is
-  the Swarm service name for Swarm tasks and the container name otherwise.
-  stdout lines get severity `INFO` and stderr lines `ERROR`.
+  Docker container. BurmillaOS does not run journald, so container logs are
+  read from the `json-file` log files instead, with `container.name`,
+  `container.id`, `container.image.name` and `docker.engine` (`user`)
+  resource attributes. `service.name` is the Swarm service name for Swarm
+  tasks and the container name otherwise. stdout lines get severity `INFO`
+  and stderr lines `ERROR`. System Docker container logs are not collected.
 * **OTLP** – receivers on `127.0.0.1:4317` (gRPC) and `127.0.0.1:4318`
   (HTTP) for applications running on the host.
 
@@ -109,6 +109,7 @@ Restart the service after changing the file:
   collector runs privileged with the host PID, network and UTS namespaces.
 * Log read positions are stored in `/var/lib/rancher/otel-collector`, so
   logs are not sent twice after a restart.
-* The collector's own container logs are not collected.
+* System Docker container logs, including the collector's own, are not
+  collected. Use `sudo system-docker logs <service>` to read them.
 * The User Docker must be running: the service starts after it and is
   restarted until the Docker API is reachable.

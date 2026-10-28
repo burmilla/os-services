@@ -11,11 +11,6 @@ extensions:
     api_version: "1.44"
     include_all_containers: true
 
-  docker_observer/system-docker:
-    endpoint: unix:///var/run/system-docker.sock
-    api_version: "1.44"
-    include_all_containers: true
-
 receivers:
   otlp/localhost:
     protocols:
@@ -68,7 +63,7 @@ receivers:
 
   # BurmillaOS does not run journald. System logs are written by rsyslog
   # to /var/log/syslog and container logs by the json-file log driver of
-  # System Docker and User Docker.
+  # User Docker. System Docker container logs are not collected.
   file_log/syslog:
     include: [/var/log/syslog]
     start_at: beginning
@@ -89,29 +84,18 @@ receivers:
           start_at: beginning
           storage: file_storage
           operators:
+            # Drop lines which are not JSON objects, e.g. the NUL padding
+            # left in a json-file log by an unclean shutdown. The container
+            # parser fails on them with "expected { character for map value"
+            # and the file reader logs an error for every such line.
+            - type: filter
+              expr: 'not (body matches "^\\{")'
             - type: container
               format: docker
               add_metadata_from_filepath: false
         resource_attributes:
           container.id: '`container_id`'
           docker.engine: user
-
-  receiver_creator/system-docker:
-    watch_observers: [docker_observer/system-docker]
-    receivers:
-      file_log:
-        rule: type == "container" && port == 0 && name != "otel-collector"
-        config:
-          include: ['/var/lib/system-docker/containers/`container_id`/`container_id`-json.log']
-          start_at: beginning
-          storage: file_storage
-          operators:
-            - type: container
-              format: docker
-              add_metadata_from_filepath: false
-        resource_attributes:
-          container.id: '`container_id`'
-          docker.engine: system
 
 processors:
   groupbyattrs/service:
@@ -134,7 +118,8 @@ processors:
           - set(log.attributes["service.name"], "unknown")
           - set(log.attributes["service.name"], log.attributes["ident"]) where log.attributes["ident"] != nil
           - set(log.attributes["syslog.identifier"], log.attributes["ident"]) where log.attributes["ident"] != nil
-          - set(log.attributes["process.pid"], Int(log.attributes["pid"])) where log.attributes["pid"] != nil
+          # The regex parser sets pid to "" when the optional [pid] group did not match
+          - set(log.attributes["process.pid"], Int(log.attributes["pid"])) where log.attributes["pid"] != nil and log.attributes["pid"] != ""
           - set(log.body, log.attributes["message"]) where log.attributes["message"] != nil
           - delete_matching_keys(log.attributes, "^(timestamp|hostname|ident|pid|message)$")
           - set(log.severity_number, SEVERITY_NUMBER_INFO)
@@ -169,7 +154,7 @@ service:
       # Collector's own log level (system-docker logs otel-collector).
       # Default is warn so that info messages are not shown locally.
       level: ${env:OTELCOL_LOG_LEVEL}
-  extensions: [file_storage, docker_observer/docker, docker_observer/system-docker]
+  extensions: [file_storage, docker_observer/docker]
   pipelines:
     traces/localhost:
       receivers: [otlp/localhost]
@@ -192,6 +177,6 @@ service:
       processors: [transform/syslog, groupbyattrs/service, resource_detection/system, batch]
       exporters: [otlp_grpc]
     logs/containers:
-      receivers: [receiver_creator/docker, receiver_creator/system-docker]
+      receivers: [receiver_creator/docker]
       processors: [transform/containers, groupbyattrs/service, resource_detection/system, batch]
       exporters: [otlp_grpc]
