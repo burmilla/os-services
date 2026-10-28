@@ -1,6 +1,6 @@
 # Docs: https://github.com/burmilla/os-services/blob/v3.0.x/images/20-otelcollector/README.md
 otel-collector:
-  image: ${REGISTRY_DOMAIN}/burmilla/os-otelcollector:v0.163.2-2
+  image: ${REGISTRY_DOMAIN}/burmilla/os-otelcollector:v0.163.2-3
   environment:
   - OTELCOL_*
   labels:
