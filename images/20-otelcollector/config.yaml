@@ -60,6 +60,7 @@ receivers:
       # Docker Swarm
       com.docker.swarm.task.name: task_name
       com.docker.swarm.service.name: job_name
+      com.docker.stack.namespace: namespace_name
 
   # BurmillaOS does not run journald. System logs are written by rsyslog
   # to /var/log/syslog and container logs by the json-file log driver of
