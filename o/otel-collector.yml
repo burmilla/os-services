@@ -15,5 +15,5 @@ otel-collector:
   - system-volumes
   volumes:
   - /:/hostfs:ro
-  - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  - /var/lib/user-docker/containers:/var/lib/docker/containers:ro
   - /var/lib/rancher/otel-collector:/var/lib/otelcol
